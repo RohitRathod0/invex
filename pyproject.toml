@@ -1,0 +1,23 @@
+[project]
+name = "invex"
+version = "0.1.0"
+description = "invex using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[tools]>=0.186.1,<1.0.0"
+]
+
+[project.scripts]
+invex = "invex.main:run"
+run_crew = "invex.main:run"
+train = "invex.main:train"
+replay = "invex.main:replay"
+test = "invex.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
