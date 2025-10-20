@@ -1,0 +1,604 @@
+analyze_markets:
+  description: >
+    Analyze the Indian stock market and mutual funds for investment opportunities.
+    
+    **USER PREFERENCES:**
+    - Stocks Included: {asset_preferences[stocks]}
+    - Mutual Funds Included: {asset_preferences[mutual_funds]}
+    
+    **CRITICAL INSTRUCTION:** Only analyze asset classes that user has selected (TRUE).
+    If stocks=False, skip ALL stock analysis entirely and focus only on mutual funds.
+    If mutual_funds=False, skip ALL mutual fund analysis entirely and focus only on stocks.
+    If both are TRUE, analyze both comprehensively.
+    
+    For EACH stock recommendation, provide minimum 10 compelling reasons including:
+    (1) Financial metrics analysis (PE, ROE, Debt/Equity, Profit Margins, Revenue Growth),
+    (2) Competitive positioning and moat analysis,
+    (3) Management quality assessment,
+    (4) Sector growth drivers,
+    (5) Historical performance consistency,
+    (6) Dividend track record if applicable,
+    (7) Analyst recommendations and target prices,
+    (8) Risk factors and mitigation,
+    (9) Portfolio diversification benefit,
+    (10) Alignment with user risk profile.
+    
+    For EACH mutual fund recommendation, provide minimum 10 compelling reasons including:
+    (1) Fund manager track record and experience,
+    (2) 1Y/3Y/5Y/10Y returns vs benchmark,
+    (3) Sharpe ratio and risk-adjusted returns,
+    (4) Expense ratio competitiveness,
+    (5) AUM size and stability,
+    (6) Portfolio turnover ratio,
+    (7) Top holdings quality analysis,
+    (8) Consistency across market cycles,
+    (9) Tax efficiency (LTCG/STCG optimization),
+    (10) SIP vs lumpsum suitability.
+    
+    User Parameters:
+    - Capital Amount: ₹{capital_amount}
+    - Risk Percentage: {risk_percentage}% ({risk_tolerance})
+    - Expected Returns: {expected_returns}% annually
+    - Investment Duration: {duration_years} years
+    - Investment Horizon: {investment_horizon}
+    - Current Date: {current_date}
+    
+    **IMPORTANT:** Use Get Top Performing Stocks tool to find stocks with HIGHEST 52-week 
+    returns, NOT just popular brands like Reliance/TCS/HDFC. Focus on ACTUAL performance 
+    over brand recognition. The tool analyzes 100+ NSE stocks and returns TRUE high performers.
+  expected_output: >
+    A comprehensive market analysis report with:
+    
+    ## Stock Recommendations (ONLY if stocks=TRUE)
+    
+    For each stock, include a dedicated '## Investment Rationale' section with numbered
+    reasons (minimum 10) structured as:
+    
+    ### [Stock Name] ([Symbol])
+    **Recommended Investment:** ₹[Amount] ([Shares] shares @ ₹[Price])
+    **Risk Rating:** ⭐⭐⭐⭐⭐ ([X]/5 - [Low/Moderate/High])
+    **52-Week Returns:** [X]% 🔥
+    
+    #### Investment Rationale: 10 Compelling Reasons
+    
+    **Financial Strength:**
+    1. **[Reason Category]:** [Detailed 2-3 sentence explanation with specific data points]
+    2. **[Reason Category]:** [Detailed 2-3 sentence explanation with specific data points]
+    3. **[Reason Category]:** [Detailed 2-3 sentence explanation with specific data points]
+    
+    **Qualitative Advantages:**
+    4. **[Reason Category]:** [Detailed explanation]
+    5. **[Reason Category]:** [Detailed explanation]
+    6. **[Reason Category]:** [Detailed explanation]
+    
+    **Growth Catalysts:**
+    7. **[Reason Category]:** [Detailed explanation]
+    8. **[Reason Category]:** [Detailed explanation]
+    
+    **Portfolio Fit:**
+    9. **[Reason Category]:** [Detailed explanation]
+    10. **[Reason Category]:** [Detailed explanation]
+    
+    ## Mutual Fund Recommendations (ONLY if mutual_funds=TRUE)
+    
+    For each fund, follow the same structured format with 10+ compelling reasons covering
+    fund manager track record, performance metrics, risk analysis, tax efficiency, and
+    portfolio role.
+    
+    **If stocks=FALSE:** State "Stock analysis skipped as per user preference."
+    **If mutual_funds=FALSE:** State "Mutual fund analysis skipped as per user preference."
+  agent: market_analyst
+
+analyze_economy:
+  description: >
+    Analyze India's macroeconomic environment to provide context for investment decisions.
+    
+    Steps:
+    1. Fetch latest India GDP growth rate
+    2. Fetch current CPI inflation rate
+    3. Analyze how these indicators affect different asset classes
+    4. Provide allocation recommendations based on economic cycle
+    5. Consider user's risk percentage and expected returns in context
+    
+    Provide context on:
+    - How current inflation impacts gold vs equity allocation
+    - GDP growth implications for sectoral preferences
+    - Interest rate environment and its effect on fixed income
+    - Currency trends and their impact on different assets
+    - Economic justification for user's {expected_returns}% return expectation
+    
+    User Parameters:
+    - Risk Percentage: {risk_percentage}% ({risk_tolerance})
+    - Expected Returns: {expected_returns}% annually
+    - Investment Duration: {duration_years} years
+  expected_output: >
+    An economic context report explaining current GDP and inflation trends, their
+    implications for asset allocation, and recommended allocation shifts based on
+    macroeconomic conditions. Include specific data points and historical comparisons.
+    
+    Assess if user's expected returns of {expected_returns}% annually is realistic
+    given current economic conditions and typical market returns.
+  agent: macro_economist
+
+analyze_alternatives:
+  description: >
+    Analyze alternative assets (gold and cryptocurrency) for portfolio diversification.
+    
+    **USER PREFERENCES:**
+    - Gold Included: {asset_preferences[gold]}
+    - Crypto Included: {asset_preferences[crypto]}
+    
+    **CRITICAL INSTRUCTION:** Only analyze asset classes that user has selected (TRUE).
+    If gold=False, skip ALL gold analysis entirely and focus only on crypto.
+    If crypto=False, skip ALL cryptocurrency analysis entirely and focus only on gold.
+    If both are FALSE, this entire task should have been skipped.
+    
+    For GOLD allocation (if gold=TRUE), provide minimum 10 compelling reasons including:
+    (1) Inflation hedge historical correlation,
+    (2) Currency devaluation protection,
+    (3) Portfolio volatility reduction data,
+    (4) SGB tax benefits vs physical gold,
+    (5) Interest income on SGBs (2.5% p.a.),
+    (6) Liquidity on stock exchanges,
+    (7) No storage/security concerns,
+    (8) Sovereign guarantee backing,
+    (9) Historical gold appreciation during crises,
+    (10) Negative correlation with equities.
+    
+    For EACH cryptocurrency recommendation (if crypto=TRUE), provide minimum 10 compelling reasons including:
+    (1) Market cap and liquidity depth,
+    (2) Technology fundamentals and use case,
+    (3) Developer activity and ecosystem growth,
+    (4) Institutional adoption trends,
+    (5) Regulatory clarity and compliance,
+    (6) Historical returns and volatility profile,
+    (7) Correlation with traditional assets,
+    (8) Network effects and adoption metrics,
+    (9) Security and decentralization measures,
+    (10) Risk-reward asymmetry justification.
+    
+    User Parameters:
+    - Risk Percentage: {risk_percentage}% ({risk_tolerance})
+    - Expected Returns: {expected_returns}% annually
+    - Current Date: {current_date}
+  expected_output: >
+    For each alternative asset (ONLY if selected by user), include a dedicated 
+    '## Investment Rationale' section with numbered reasons (minimum 10) with 
+    supporting data and clear risk disclosures.
+    
+    ## Gold Investment Analysis (ONLY if gold=TRUE)
+    **Recommended Allocation:** ₹[Amount] ([X]% of portfolio)
+    **Investment Type:** [SGB/Physical Gold/Gold ETF]
+    **Risk Rating:** ⭐⭐ (2/5 - Low)
+    
+    ### Investment Rationale: 10 Compelling Reasons
+    1. **[Category]:** [Detailed explanation with data]
+    2-10. [Continue with detailed reasons]
+    
+    ## Cryptocurrency Recommendations (ONLY if crypto=TRUE)
+    
+    For each crypto, provide similar structured rationale with 10+ reasons, emphasizing
+    risk management and portfolio allocation logic.
+    
+    **If gold=FALSE:** State "Gold analysis skipped as per user preference."
+    **If crypto=FALSE:** State "Cryptocurrency analysis skipped as per user preference."
+  agent: alternative_assets_analyst
+
+optimize_portfolio:
+  description: >
+    Create an optimized portfolio allocation based on all research inputs.
+    
+    **CRITICAL: USER ASSET PREFERENCES**
+    - Stocks: {asset_preferences[stocks]}
+    - Mutual Funds: {asset_preferences[mutual_funds]}
+    - Gold: {asset_preferences[gold]}
+    - Crypto: {asset_preferences[crypto]}
+    
+    **ALLOCATION RULES (MUST FOLLOW):**
+    1. If asset preference = FALSE, allocate EXACTLY 0% to that asset class
+    2. Redistribute allocation ONLY across assets where preference = TRUE
+    3. Total allocation across selected assets must equal 100%
+    4. Example: If crypto=FALSE and gold=FALSE, allocate 100% across stocks and mutual funds only
+    5. Example: If only stocks=TRUE, allocate 100% to stocks with 0% to all other assets
+    
+    For EACH individual investment in the portfolio, synthesize rationale from previous
+    agents and add:
+    (1) Portfolio-level contribution analysis,
+    (2) Correlation with other holdings,
+    (3) Rebalancing logic and triggers,
+    (4) Expected contribution to overall returns,
+    (5) Risk contribution to portfolio volatility,
+    (6) Liquidity timing considerations,
+    (7) Tax harvesting opportunities,
+    (8) Emergency fund accessibility,
+    (9) Goal alignment (growth/income/preservation),
+    (10) Exit strategy and holding period.
+    
+    Provide a separate section for OVERALL PORTFOLIO RATIONALE with minimum 10 reasons
+    why this specific asset mix is optimal for the user.
+    
+    **EXPECTED RETURNS VALIDATION:**
+    - User expects: {expected_returns}% annually
+    - Over {duration_years} years: ₹{capital_amount} should grow to ₹[calculate: capital_amount * (1 + expected_returns/100)^duration_years]
+    - Assess if portfolio allocation can realistically achieve this
+    - If not achievable, explain gap and suggest: (a) increase risk, (b) longer duration, (c) adjust expectations
+    
+    Inputs:
+    - Capital amount: ₹{capital_amount}
+    - Risk percentage: {risk_percentage}% ({risk_tolerance})
+    - Expected returns: {expected_returns}% annually
+    - Investment duration: {duration_years} years ({investment_horizon})
+    - Asset preferences: {asset_preferences}
+    - Market analysis data from previous agent
+    - Economic context from previous agent
+    - Alternative assets data from previous agent
+  expected_output: >
+    Comprehensive portfolio optimization document with:
+    
+    ## Portfolio Overview
+    - Total Capital: ₹{capital_amount}
+    - Risk Profile: {risk_percentage}% ({risk_tolerance})
+    - Time Horizon: {investment_horizon}
+    - Expected Returns Target: {expected_returns}% annually
+    
+    ## Overall Portfolio Rationale: 10 Reasons for This Asset Mix
+    1. **[Diversification Logic]:** [Detailed explanation]
+    2. **[Risk-Return Optimization]:** [Detailed explanation]
+    3-10. [Continue with comprehensive reasoning]
+    
+    ## Asset Allocation Summary
+    - Stocks: [X]% (₹[Amount]) - ONLY if stocks=TRUE, else 0%
+    - Mutual Funds: [X]% (₹[Amount]) - ONLY if mutual_funds=TRUE, else 0%
+    - Gold: [X]% (₹[Amount]) - ONLY if gold=TRUE, else 0%
+    - Cryptocurrency: [X]% (₹[Amount]) - ONLY if crypto=TRUE, else 0%
+    - **TOTAL: 100%**
+    
+    ## Individual Investment Rationale
+    
+    ### Stocks Allocation ([X]% - ₹[Y])
+    **Why This Percentage:** [2-3 sentence explanation based on risk tolerance and user preferences]
+    
+    #### [Stock 1 Name]
+    **Investment:** ₹[Amount] ([Shares] shares)
+    **Portfolio Role:** [Primary Growth / Dividend Income / Defensive]
+    
+    ##### 10 Reasons for This Investment:
+    1. **[Category]:** [Detailed explanation]
+    2-10. [Continue]
+    
+    [Repeat for all selected asset classes - stocks, mutual funds, gold, crypto]
+    
+    ## Expected Returns vs User Target
+    
+    ### Portfolio Projected Returns
+    - Conservative Scenario: [X]% annually → ₹{capital_amount} becomes ₹[Amount] in {duration_years} years
+    - Base Case Scenario: [Y]% annually → ₹{capital_amount} becomes ₹[Amount] in {duration_years} years
+    - Optimistic Scenario: [Z]% annually → ₹{capital_amount} becomes ₹[Amount] in {duration_years} years
+    
+    ### User Target: {expected_returns}% annually
+    - Target Final Amount: ₹[{capital_amount} * (1 + {expected_returns}/100)^{duration_years}]
+    
+    ### Gap Analysis
+    **Can we meet the target?** [Yes/No with explanation]
+    
+    If NO:
+    - Current gap: [X]% between target and projected returns
+    - **Option 1:** Increase risk allocation to [X]% (shift to aggressive)
+    - **Option 2:** Extend investment duration to [X] years
+    - **Option 3:** Revise expected returns to realistic [X]% annually
+    
+    If YES:
+    - Portfolio is well-positioned to meet or exceed target
+    - Confidence level: [High/Medium/Low]
+    
+    ## Risk-Return Trade-off Analysis
+    - Expected Portfolio Return: [Conservative/Base/Optimistic]
+    - Portfolio Volatility: [X]% (quantified standard deviation)
+    - Sharpe Ratio: [If calculable]
+    - Maximum Drawdown Estimate: [X]% in worst-case year
+    
+    ## Scenario Analysis
+    - Bull Market (+20% equity): Portfolio grows to ₹[Amount]
+    - Base Case (normal): Portfolio grows to ₹[Amount]
+    - Bear Market (-20% equity): Portfolio falls to ₹[Amount] (downside protection from diversification)
+  agent: portfolio_optimizer
+  context:
+    - analyze_markets
+    - analyze_economy
+    - analyze_alternatives
+
+generate_report:
+  description: >
+    Create a comprehensive, beginner-friendly investment report for the user.
+    
+    Transform all technical rationale into beginner-friendly language while maintaining
+    depth. For EACH investment, create a persuasive narrative that includes:
+    (1) Opening hook explaining the opportunity,
+    (2) All 10+ reasons from previous analysis formatted for clarity,
+    (3) Visual risk rating (⭐⭐⭐⭐⭐),
+    (4) Comparison to alternatives,
+    (5) Real-world analogy or case study,
+    (6) Common investor concerns addressed,
+    (7) Action steps for implementation,
+    (8) Monitoring metrics and review frequency,
+    (9) When to sell criteria,
+    (10) Success probability assessment.
+    
+    Add a new section: 'Why This Recommendation is Trustworthy' with citations to data
+    sources and methodology.
+    
+    **EXPECTED RETURNS COMPARISON (MANDATORY):**
+    - User expects: {expected_returns}% annually over {duration_years} years
+    - This means: ₹{capital_amount} → ₹[calculate final amount]
+    - Compare with portfolio projections (conservative/base/optimistic)
+    - If portfolio can't meet target, explain gap clearly and suggest adjustments
+    
+    **ASSET EXCLUSIONS (IMPORTANT):**
+    - Only include asset classes where user preference = TRUE
+    - If stocks=FALSE, do NOT include any stock recommendations
+    - If crypto=FALSE, do NOT include any crypto recommendations
+    - Explain excluded asset classes briefly: "Cryptocurrency excluded as per your preference"
+    
+    Input: Optimized portfolio from Portfolio Optimizer with expected returns validation
+  expected_output: >
+    Professional investment report with:
+    
+    # Investment Report for ₹{capital_amount}
+    **Prepared on:** {current_date}
+    **Risk Profile:** {risk_percentage}% ({risk_tolerance})
+    **Investment Horizon:** {investment_horizon} ({duration_years} years)
+    **Expected Returns Target:** {expected_returns}% annually
+    
+    ## Executive Summary
+    
+    ### Your Investment Goal
+    - Starting Capital: ₹{capital_amount}
+    - Target Returns: {expected_returns}% annually
+    - Target Final Amount (after {duration_years} years): ₹[calculated amount]
+    
+    ### Can We Achieve This?
+    **Portfolio Projected Returns:**
+    - Conservative: [X]% → ₹[Amount]
+    - Base Case: [Y]% → ₹[Amount]
+    - Optimistic: [Z]% → ₹[Amount]
+    
+    **Assessment:** [Clear Yes/No statement]
+    [If gap exists: Explain shortfall and suggest 3 adjustment options]
+    
+    ### Top 5 Reasons for This Portfolio
+    1. [Most compelling overall reason]
+    2. [Second most compelling reason]
+    3-5. [Continue]
+    
+    ## Your Personalized Portfolio
+    
+    ### Asset Allocation
+    **Selected Asset Classes (as per your preferences):**
+    - Stocks: [X]% (₹[Amount]) - [Included/Excluded]
+    - Mutual Funds: [X]% (₹[Amount]) - [Included/Excluded]
+    - Gold: [X]% (₹[Amount]) - [Included/Excluded]
+    - Cryptocurrency: [X]% (₹[Amount]) - [Included/Excluded]
+    
+    [For excluded assets: Brief note "Excluded as per your preference"]
+    
+    ### Investment Philosophy
+    [2-3 paragraphs explaining the overall strategy, how it matches user's profile, and
+    the diversification logic in beginner-friendly language]
+    
+    ---
+    
+    ## 📈 Stock Investments (₹[Amount] - [X]%)
+    [ONLY if stocks=TRUE, otherwise show: "Stocks excluded as per your preference"]
+    
+    **Why This Allocation Percentage:**
+    [2-3 sentence explanation accessible to beginners]
+    
+    ### [Stock 1 Name] - ₹[Amount]
+    
+    **The Opportunity:**
+    [Attention-grabbing 1-2 sentence hook explaining why this is compelling]
+    
+    **Risk Rating:** ⭐⭐⭐⭐ (4/5 - Moderate Risk)
+    **52-Week Returns:** [X]% 🔥
+    
+    #### 10 Compelling Reasons to Invest
+    
+    **💰 Financial Strength (Reasons 1-3)**
+    1. **[Reason Title]:** [Clear, jargon-free explanation with specific numbers]
+    2. **[Reason Title]:** [Clear explanation]
+    3. **[Reason Title]:** [Clear explanation]
+    
+    **🏆 Competitive Advantages (Reasons 4-6)**
+    4. **[Reason Title]:** [Clear explanation]
+    5. **[Reason Title]:** [Clear explanation]
+    6. **[Reason Title]:** [Clear explanation]
+    
+    **🚀 Growth Potential (Reasons 7-8)**
+    7. **[Reason Title]:** [Clear explanation]
+    8. **[Reason Title]:** [Clear explanation]
+    
+    **🎯 Portfolio Fit (Reasons 9-10)**
+    9. **[Reason Title]:** [Clear explanation]
+    10. **[Reason Title]:** [Clear explanation]
+    
+    **Why This Recommendation is Trustworthy:**
+    - Data sourced from: [NSE, company filings, verified {current_date}]
+    - Metrics benchmarked against: [X peers]
+    - Conservative projections: [Below analyst consensus]
+    
+    **Common Concerns Addressed:**
+    - "Is this stock overvalued?" [Answer]
+    - "What if the sector declines?" [Answer]
+    - "How liquid is this stock?" [Answer]
+    
+    **Action Steps:**
+    1. [Specific step]
+    2. [Specific step]
+    3. [Specific step]
+    
+    **When to Sell:**
+    - [Specific trigger]
+    - [Specific trigger]
+    - [Specific trigger]
+    
+    ---
+    
+    ## 💼 Mutual Fund Investments (₹[Amount] - [X]%)
+    [ONLY if mutual_funds=TRUE, otherwise show: "Mutual Funds excluded as per your preference"]
+    
+    [Follow same detailed format for each mutual fund]
+    
+    ---
+    
+    ## 🪙 Gold Investment (₹[Amount] - [X]%)
+    [ONLY if gold=TRUE, otherwise show: "Gold excluded as per your preference"]
+    
+    [Follow same detailed format]
+    
+    ---
+    
+    ## 🔐 Cryptocurrency Investments (₹[Amount] - [X]%)
+    [ONLY if crypto=TRUE, otherwise show: "Cryptocurrency excluded as per your preference"]
+    
+    [Follow same detailed format with extra emphasis on risk warnings]
+    
+    ---
+    
+    ## How to Invest - Step-by-Step Guide
+    
+    ### Step 1: Open Accounts
+    [Detailed beginner-friendly instructions for selected asset classes only]
+    
+    ### Step 2: Fund Your Account
+    [Detailed instructions]
+    
+    ### Step 3: Execute Purchases
+    [Platform-specific instructions for SELECTED asset classes only]
+    
+    ---
+    
+    ## Expected Returns & Your Target
+    
+    ### Your Goal vs Portfolio Performance
+    
+    **Your Target:**
+    - {expected_returns}% annually for {duration_years} years
+    - ₹{capital_amount} → ₹[calculated target amount]
+    
+    **Portfolio Projections:**
+    
+    **Conservative Scenario ([X]% annually):**
+    - Final Amount: ₹[Amount]
+    - Gap from Target: [+/-X%]
+    - Likelihood: 80%
+    [Explanation of assumptions]
+    
+    **Base Case Scenario ([Y]% annually):**
+    - Final Amount: ₹[Amount]
+    - Gap from Target: [+/-X%]
+    - Likelihood: 60%
+    [Explanation of assumptions]
+    
+    **Optimistic Scenario ([Z]% annually):**
+    - Final Amount: ₹[Amount]
+    - Gap from Target: [+/-X%]
+    - Likelihood: 30%
+    [Explanation of assumptions]
+    
+    ### Can You Achieve {expected_returns}%?
+    [Clear assessment with explanation]
+    
+    **If Target Not Met:**
+    Adjust your strategy by choosing ONE of these options:
+    1. **Increase Risk:** Shift to [X]% risk (more aggressive stocks)
+    2. **Extend Duration:** Invest for [X] years instead of {duration_years} years
+    3. **Revise Target:** Realistic returns of [X]% annually based on portfolio
+    
+    ### Risk Metrics
+    - Portfolio Volatility: [X]% (means: [simple explanation])
+    - Maximum Expected Loss: [X]% in worst year
+    - Diversification Benefit: [Quantified improvement]
+    
+    ---
+    
+    ## Economic Context
+    
+    **Why This Allocation Makes Sense Right Now:**
+    [Tie together current GDP, inflation, sector trends, and portfolio choices in
+    accessible language]
+    
+    ---
+    
+    ## Investment Rationale Summary
+    
+    **The 4 Core Pillars of This Portfolio:**
+    1. **[Pillar 1]:** [Explanation tied to user's goal]
+    2. **[Pillar 2]:** [Explanation]
+    3. **[Pillar 3]:** [Explanation]
+    4. **[Pillar 4]:** [Explanation]
+    
+    ---
+    
+    ## Rebalancing & Monitoring
+    
+    ### Review Schedule
+    - Monthly: [What to check]
+    - Quarterly: [What to review]
+    - Annually: [When to rebalance]
+    
+    ### Rebalancing Triggers
+    - [Specific trigger with threshold]
+    - [Specific trigger with threshold]
+    
+    ---
+    
+    ## FAQ - Your Questions Answered
+    
+    **Q: Is this portfolio suitable for a beginner?**
+    A: [Detailed answer]
+    
+    **Q: Can I really achieve {expected_returns}% returns?**
+    A: [Honest assessment with data]
+    
+    **Q: What if I need emergency funds?**
+    A: [Detailed answer with liquidity ladder]
+    
+    **Q: How do taxes work on these investments?**
+    A: [Detailed answer with LTCG/STCG]
+    
+    **Q: Why were some asset classes excluded?**
+    A: [Explain based on user preferences]
+    
+    [5+ more relevant FAQs]
+    
+    ---
+    
+    ## Why This Report is Trustworthy
+    
+    ✅ **Data Sources:** All recommendations based on verified data from NSE, company
+    filings, mutual fund fact sheets, and economic databases (as of {current_date})
+    
+    ✅ **Methodology:** Portfolio constructed using Modern Portfolio Theory with
+    diversification optimization and risk-adjusted return analysis
+    
+    ✅ **Conservative Projections:** Return estimates below market consensus for safety margin
+    
+    ✅ **Risk Transparency:** Every recommendation includes clear risk disclosures
+    
+    ✅ **Personalized:** Based on YOUR preferences (risk: {risk_percentage}%, 
+    target: {expected_returns}%, duration: {duration_years} years)
+    
+    ---
+    
+    ## Conclusion: Your Path Forward
+    
+    [Motivational 2-3 paragraph summary that:
+    - Reinforces if target is achievable or needs adjustment
+    - Builds confidence in selected investments
+    - Acknowledges excluded asset classes as user's choice
+    - Provides clear next steps]
+    
+    **Ready to Start?** [Call to action]
+  agent: report_writer
+  context:
+    - optimize_portfolio
