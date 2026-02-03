@@ -1,54 +1,225 @@
 # Invex Crew
+🚀 Invex — Multi-Agent AI Support System (with crewAI)
 
-Welcome to the Invex Crew project, powered by [crewAI](https://crewai.com). This template is designed to help you set up a multi-agent AI system with ease, leveraging the powerful and flexible framework provided by crewAI. Our goal is to enable your agents to collaborate effectively on complex tasks, maximizing their collective intelligence and capabilities.
+Invex is a configurable multi-agent AI system built using the crewAI framework. It allows a crew of intelligent agents to collaboratively solve complex tasks defined in configuration files. The agents communicate, reason, and produce outputs like research reports using LLMs.
 
-## Installation
+🧠 Table of Contents
 
-Ensure you have Python >=3.10 <3.14 installed on your system. This project uses [UV](https://docs.astral.sh/uv/) for dependency management and package handling, offering a seamless setup and execution experience.
+🔍 About the Project
 
-First, if you haven't already, install uv:
+🛠️ Tech Stack
 
-```bash
+🧱 Architecture Overview
+
+📦 Installation
+
+▶️ How to Run
+
+🧩 Configuration
+
+🧠 What I Learned
+
+📊 Metrics & Evaluation
+
+🚀 Future Improvements
+
+📁 Project Structure
+
+🤝 Contribution & Support
+
+🔍 About the Project
+
+Invex Crew is a template project powered by crewAI that demonstrates a multi-agent collaboration system. Each agent is defined with a role, goals, and optionally tools, and they work together to complete user-defined tasks by leveraging large language models.
+
+Example use cases include:
+
+AI research automation
+
+Multi-agent reasoning workflows
+
+Report generation
+
+Intelligent task delegation
+
+🛠️ Tech Stack
+Layer	Technology
+Language	Python (3.10–3.13)
+AI Orchestration	crewAI
+LLM Integration	OpenAI / other models
+Config Files	YAML
+Dependency Management	UV
+Output	Markdown or other artifacts
+
+This setup gives you flexibility to integrate with vector DBs, external APIs, tool-enabled agents, and more.
+
+🧱 Architecture Overview
+
+Invex follows a config-driven multi-agent pipeline:
+
+User Input
+   ↓
+crewAI Runner
+   ↓
+Agent Config (agents.yaml)
+   ↓
+Task Config (tasks.yaml)
+   ↓
+Agent Instantiation
+   ↓
+LLM + Reasoning Layer
+   ↓
+Collaborative Execution
+   ↓
+Results (e.g., report.md)
+
+
+Each agent encapsulates domain logic and can use external tools, knowledge bases, or retrieval systems.
+
+📦 Installation
+
+Make sure you have Python (3.10–3.13) installed.
+
+Install UV:
+
 pip install uv
-```
 
-Next, navigate to your project directory and install the dependencies:
 
-(Optional) Lock the dependencies and install them by using the CLI command:
-```bash
-crewai install
-```
-### Customizing
+Navigate to the project:
 
-**Add your `OPENAI_API_KEY` into the `.env` file**
+cd invex
 
-- Modify `src/invex/config/agents.yaml` to define your agents
-- Modify `src/invex/config/tasks.yaml` to define your tasks
-- Modify `src/invex/crew.py` to add your own logic, tools and specific args
-- Modify `src/invex/main.py` to add custom inputs for your agents and tasks
 
-## Running the Project
+Install dependencies:
 
-To kickstart your crew of AI agents and begin task execution, run this from the root folder of your project:
+uv install
 
-```bash
-$ crewai run
-```
 
-This command initializes the invex Crew, assembling the agents and assigning them tasks as defined in your configuration.
+Create .env and set:
 
-This example, unmodified, will run the create a `report.md` file with the output of a research on LLMs in the root folder.
+OPENAI_API_KEY=your_api_key_here
 
-## Understanding Your Crew
+▶️ How to Run
 
-The invex Crew is composed of multiple AI agents, each with unique roles, goals, and tools. These agents collaborate on a series of tasks, defined in `config/tasks.yaml`, leveraging their collective skills to achieve complex objectives. The `config/agents.yaml` file outlines the capabilities and configurations of each agent in your crew.
+To start the Invex crew and execute tasks:
 
-## Support
+crewai run
 
-For support, questions, or feedback regarding the Invex Crew or crewAI.
-- Visit our [documentation](https://docs.crewai.com)
-- Reach out to us through our [GitHub repository](https://github.com/joaomdmoura/crewai)
-- [Join our Discord](https://discord.com/invite/X4JWnZnxPb)
-- [Chat with our docs](https://chatg.pt/DWjSBZn)
 
-Let's create wonders together with the power and simplicity of crewAI.
+Once executed, this will run all agents as defined in src/invex/config/agents.yaml and src/invex/config/tasks.yaml. It produces outputs such as reports or summaries in the outputs/ directory.
+
+🧩 Configuration
+🧠 Agents
+
+Edit:
+
+src/invex/config/agents.yaml
+
+
+Define each agent’s role, goals, and capabilities.
+
+📋 Tasks
+
+Edit:
+
+src/invex/config/tasks.yaml
+
+
+Specify tasks for agents to perform collaboratively.
+
+🧠 What I Learned
+
+Working on this project helped me understand:
+
+Multi-agent orchestration with crewAI
+
+Config-driven system design
+
+Prompt chaining and workflow automation
+
+Structuring AI pipelines for scalability
+
+Managing LLM API integration and prompts
+
+Debugging complex multi-agent flows
+
+📊 Evaluation & Metrics
+
+Instead of traditional “accuracy,” this kind of system is evaluated using:
+
+📌 Task Completion Rate
+
+Percentage of tasks successfully executed.
+
+📌 Relevance & Quality Score
+
+Human or automated rating of how coherent and useful the outputs are.
+
+📌 Latency
+
+Average time to complete tasks.
+
+Sample metrics to include after testing:
+
+Metric	Value
+Task Completion	90%
+Output Quality	4.5 / 5
+Avg Response Time	2.8 sec
+
+These estimates help you benchmark performance and chemistry among agents.
+
+🚀 Future Improvements
+
+Here’s how Invex can be improved:
+
+Add persistent agent memory
+
+Connection to vector databases for RAG support
+
+Add tool invocation (web search, code execution, calculators)
+
+Streaming response support
+
+Web or UI interface
+
+Support for more LLM providers
+
+Benchmarking suite for metrics
+
+These value additions boost performance, usability, and real-world adoption.
+
+📁 Project Structure
+invex/
+├── knowledge/           # Static knowledge files
+├── outputs/             # Generated outputs (reports, files)
+├── src/
+│   └── invex/
+│       ├── config/
+│       │   ├── agents.yaml
+│       │   └── tasks.yaml
+│       ├── crew.py
+│       └── main.py
+├── .gitignore
+├── run_interactive.py
+├── requirements.txt
+├── uv.lock
+└── README.md
+
+🤝 Contribution & Support
+
+Contributions are welcome! 🚀
+
+Whether it’s improving agent logic, adding new tasks, or integrating with new tools — feel free to:
+
+Open issues
+
+Submit pull requests
+
+Add documentation
+
+For support:
+
+Visit the crewAI documentation
+
+Join the crewAI Discord
+
+Check out community examples
