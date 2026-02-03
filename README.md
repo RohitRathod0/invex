@@ -1,7 +1,22 @@
 # Invex Crew
 🚀 Invex — Multi-Agent AI Support System (with crewAI)
 
-Invex is a configurable multi-agent AI system built using the crewAI framework. It allows a crew of intelligent agents to collaboratively solve complex tasks defined in configuration files. The agents communicate, reason, and produce outputs like research reports using LLMs.
+Invex is a configurable multi-agent AI investment guidance platform built using the crewAI framework.
+It is designed to assist new and beginner investors by providing structured, data-driven financial insights and investment guidance through collaborative AI agents.
+
+The system uses a crew of specialized agents that communicate, reason, and analyze financial information to generate:
+
+Investment insights
+
+Risk analysis
+
+Market overviews
+
+Educational explanations
+
+Structured reports
+
+All workflows are config-driven, allowing agents and tasks to be easily customized or extended.
 
 🧠 Table of Contents
 
