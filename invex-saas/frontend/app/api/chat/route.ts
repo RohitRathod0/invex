@@ -128,7 +128,26 @@ export async function POST(req: NextRequest) {
 
         if (agentData.status === 'failed') throw new Error(agentData.error || 'Agent failed');
 
-        const replyText: string = agentData.result || agentData.output || "I couldn't process that. Try again.";
+        let replyText: string = "";
+        
+        // Handle new JSON structured output from the backend
+        if (typeof agentData.result === 'object' && agentData.result !== null) {
+            // It's the new PortfolioReport schema. We format it for chat.
+            const r = agentData.result;
+            replyText = `**Portfolio Analysis Complete**\nTarget: ₹${r.total_capital?.toLocaleString('en-IN')}\n\n`;
+            
+            if (r.macro_context) replyText += `🌍 **Macro View:** ${r.macro_context}\n\n`;
+            
+            if (r.recommendations?.length) {
+                replyText += `**Top Recommendations:**\n`;
+                r.recommendations.slice(0, 3).forEach((rec: any) => {
+                    replyText += `- **${rec.symbol}** (${rec.action}): ${rec.reasons?.[0]?.text || ''}\n`;
+                });
+            }
+        } else {
+            // Fallback for strings
+            replyText = agentData.result || agentData.output || "I couldn't process that. Try again.";
+        }
 
         // Check if what-if mode — parse chart data
         const { isWhatIf, parsed: whatIfData } = parseWhatIfResponse(replyText);

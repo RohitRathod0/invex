@@ -5,6 +5,11 @@ import { AddHoldingModal } from '../components/portfolio/AddHoldingModal';
 import { AllocationChart } from '../components/portfolio/AllocationChart';
 import { PerformanceChart } from '../components/portfolio/PerformanceChart';
 import { HoldingsTable } from '../components/portfolio/HoldingsTable';
+import { BacktestSimulator } from '../components/portfolio/BacktestSimulator';
+import { RiskAnalyticsPanel } from '../components/portfolio/RiskAnalyticsPanel';
+import { StressTester } from '../components/portfolio/StressTester';
+import { SmartRebalancer } from '../components/portfolio/SmartRebalancer';
+import { TaxOptimizationPanel } from '../components/portfolio/TaxOptimizationPanel';
 
 const USER_ID = "0000-user";
 
@@ -70,6 +75,31 @@ export const PortfolioPage = () => {
 
             {/* Bottom row: Performance */}
             <PerformanceChart userId={USER_ID} />
+
+            {/* Risk Analytics row */}
+            <div className="mt-8">
+                <RiskAnalyticsPanel userId={USER_ID} />
+            </div>
+
+            {/* Monte Carlo Stress Tester row */}
+            <div className="mt-8">
+                <StressTester userId={USER_ID} />
+            </div>
+
+            {/* Tax Optimization row */}
+            <div className="mt-8">
+                <TaxOptimizationPanel userId={USER_ID} />
+            </div>
+
+            {/* Backtest row */}
+            <div className="mt-8">
+                <BacktestSimulator />
+            </div>
+
+            {/* Smart Rebalancer row */}
+            <div className="mt-8">
+                <SmartRebalancer userId={USER_ID} />
+            </div>
 
             <AddHoldingModal
                 isOpen={isAddModalOpen}

@@ -1,10 +1,27 @@
 import React from 'react';
+import Link from 'next/link';
 import { Diamond, Twitter, Linkedin, Github, Mail } from 'lucide-react';
 
-const FOOTER_LINKS = {
-    Product: ['Advisors', 'AI Intelligence', 'Tools', 'Dashboard', 'Pricing'],
-    Company: ['About', 'Blog', 'Careers', 'Press', 'Contact'],
-    Legal: ['Privacy Policy', 'Terms of Service', 'Cookie Policy'],
+type FooterLink = { label: string; href: string };
+
+const FOOTER_LINKS: Record<string, FooterLink[]> = {
+    Product: [
+        { label: 'Advisors', href: '/advisors' },
+        { label: 'AI Intelligence', href: '/#ai-intelligence' },
+        { label: 'Tools', href: '/tools' },
+        { label: 'Dashboard', href: '/dashboard' },
+    ],
+    Company: [
+        { label: 'About', href: '#' },
+        { label: 'Blog', href: '#' },
+        { label: 'Careers', href: '#' },
+        { label: 'Contact', href: '#' },
+    ],
+    Legal: [
+        { label: 'Privacy Policy', href: '/legal/privacy' },
+        { label: 'Terms of Service', href: '/legal/terms' },
+        { label: 'Disclaimers', href: '/legal/disclaimers' },
+    ],
 };
 
 const SOCIALS = [
@@ -46,13 +63,14 @@ export function Footer() {
                             <h4 className="text-white font-semibold text-sm mb-4">{category}</h4>
                             <ul className="space-y-3">
                                 {links.map(link => (
-                                    <li key={link}>
-                                        <a href="#" className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{link}</a>
+                                    <li key={link.label}>
+                                        <Link href={link.href} className="text-gray-500 hover:text-gray-300 text-sm transition-colors">{link.label}</Link>
                                     </li>
                                 ))}
                             </ul>
                         </div>
                     ))}
+
                 </div>
 
                 {/* Bottom */}

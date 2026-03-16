@@ -92,12 +92,21 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
 
     try:
         result = await asyncio.to_thread(_execute_crew_blocking, crew_inputs, asset_preferences)
+        
+        # CrewAI 0.11+ Returns a CrewOutput object. 
+        # If output_json was used, it parses it into json_dict.
+        parsed_result = None
+        if hasattr(result, "json_dict") and result.json_dict:
+            parsed_result = result.json_dict
+        else:
+            # Fallback to string if JSON parsing failed
+            parsed_result = str(result)
 
         return {
             "run_id": run_id,
             "session_id": session_id,
             "status": "completed",
-            "result": str(result),
+            "result": parsed_result,
             "created_at": datetime.now().isoformat()
         }
     except Exception as e:

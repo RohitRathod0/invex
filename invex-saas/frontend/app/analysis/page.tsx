@@ -258,7 +258,7 @@ export default function AnalysisPage() {
 
                     {/* Result */}
                     {result ? (
-                        <div style={{ ...card, overflow: 'hidden', flex: 1 }}>
+                        <div style={{ ...card, overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column' }}>
                             <div style={{ padding: '16px 22px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <h3 style={{ fontWeight: 600, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', color: '#fff' }}>
                                     <CheckCircle size={15} color="#C8F135" /> Analysis Report
@@ -267,8 +267,144 @@ export default function AnalysisPage() {
                                     <Download size={12} /> Download
                                 </button>
                             </div>
-                            <div style={{ padding: '20px', overflowY: 'auto', maxHeight: '520px' }}>
-                                <pre style={{ color: '#D1D5DB', fontSize: '13px', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>{result}</pre>
+                            <div style={{ padding: '20px', overflowY: 'auto', maxHeight: '600px', flex: 1 }}>
+                                {(() => {
+                                    try {
+                                        const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+                                        if (parsed.recommendations && Array.isArray(parsed.recommendations)) {
+                                            // Render structured JSON dashboard
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                                    {/* Top Stats */}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                                                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px' }}>
+                                                            <div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '4px' }}>Total Capital</div>
+                                                            <div style={{ fontSize: '20px', fontWeight: 700, color: '#C8F135' }}>₹{parsed.total_capital?.toLocaleString('en-IN') || amount}</div>
+                                                        </div>
+                                                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px' }}>
+                                                            <div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '4px' }}>Risk Profile</div>
+                                                            <div style={{ fontSize: '20px', fontWeight: 700 }}>{parsed.user_risk_profile || risk}</div>
+                                                        </div>
+                                                        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px' }}>
+                                                            <div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '4px' }}>Diversification Score</div>
+                                                            <div style={{ fontSize: '20px', fontWeight: 700, color: parsed.diversification_score > 70 ? '#10B981' : '#F59E0B' }}>
+                                                                {parsed.diversification_score || 0}/100
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Macro Context */}
+                                                    {parsed.macro_context && (
+                                                        <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', padding: '16px', borderRadius: '12px', display: 'flex', gap: '12px' }}>
+                                                            <Globe2 size={20} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
+                                                            <div>
+                                                                <div style={{ fontSize: '13px', fontWeight: 600, color: '#60a5fa', marginBottom: '4px' }}>Macro Context</div>
+                                                                <div style={{ fontSize: '13px', color: '#D1D5DB', lineHeight: 1.6 }}>{parsed.macro_context}</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Recommendations */}
+                                                    <div>
+                                                        <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <Banknote size={16} color="#C8F135" /> Recommendations ({parsed.recommendations.length})
+                                                        </h4>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                                            {parsed.recommendations.map((rec: any, i: number) => (
+                                                                <div key={i} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '14px', overflow: 'hidden' }}>
+                                                                    
+                                                                    {/* Card Header */}
+                                                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                                            <div style={{ background: '#111', border: '1px solid #333', color: '#fff', fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px' }}>
+                                                                                {rec.symbol}
+                                                                            </div>
+                                                                            <div>
+                                                                                <div style={{ fontSize: '15px', fontWeight: 600 }}>{rec.company_name}</div>
+                                                                                <div style={{ fontSize: '12px', color: '#9CA3AF' }}>{rec.asset_class} • {rec.sector}</div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div style={{ textAlign: 'right' }}>
+                                                                            <div style={{ fontSize: '12px', color: '#9CA3AF', marginBottom: '4px' }}>Action</div>
+                                                                            <div style={{ 
+                                                                                fontSize: '13px', fontWeight: 700, padding: '4px 12px', borderRadius: '4px',
+                                                                                background: rec.action === 'BUY' ? 'rgba(16,185,129,0.1)' : rec.action === 'SELL' ? 'rgba(239,68,68,0.1)' : 'rgba(107,114,128,0.1)',
+                                                                                color: rec.action === 'BUY' ? '#10B981' : rec.action === 'SELL' ? '#EF4444' : '#9CA3AF'
+                                                                            }}>
+                                                                                {rec.action} ({rec.allocation_percentage}%)
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Card Body */}
+                                                                    <div style={{ padding: '20px' }}>
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 240px', gap: '24px' }}>
+                                                                            
+                                                                            {/* Reasons */}
+                                                                            <div>
+                                                                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Investment Thesis</div>
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                                                    {rec.reasons?.map((r: any, rIdx: number) => (
+                                                                                        <div key={rIdx} style={{ fontSize: '13px', lineHeight: 1.6, display: 'flex', gap: '8px' }}>
+                                                                                            <span style={{ color: '#C8F135' }}>•</span> 
+                                                                                            <div>
+                                                                                                <span style={{ color: '#D1D5DB' }}>{r.text}</span>
+                                                                                                {r.data_point && <span style={{ marginLeft: '6px', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', color: '#9CA3AF' }}>{r.data_point}</span>}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+
+                                                                            {/* Targets & Risks */}
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', borderLeft: '1px solid rgba(255,255,255,0.06)', paddingLeft: '24px' }}>
+                                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                                                                    <div>
+                                                                                        <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '4px' }}>Target</div>
+                                                                                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#10B981' }}>₹{rec.target_price}</div>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '4px' }}>Stop Loss</div>
+                                                                                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#EF4444' }}>₹{rec.stop_loss}</div>
+                                                                                    </div>
+                                                                                </div>
+                                                                                
+                                                                                <div>
+                                                                                    <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '8px' }}>Confidence</div>
+                                                                                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                                                        <div style={{ height: '100%', width: `${rec.confidence_score}%`, background: '#C8F135', borderRadius: '3px' }} />
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {rec.risks && rec.risks.length > 0 && (
+                                                                                    <div>
+                                                                                        <div style={{ fontSize: '11px', color: '#EF4444', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                            <Shield size={10} /> Key Risk
+                                                                                        </div>
+                                                                                        <div style={{ fontSize: '12px', color: '#D1D5DB', lineHeight: 1.4 }}>
+                                                                                            {rec.risks[0]}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            );
+                                        }
+                                        // Fallback rendering if parsed JSON doesn't match expected struct
+                                        return <pre style={{ color: '#D1D5DB', fontSize: '13px', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{JSON.stringify(parsed, null, 2)}</pre>;
+                                    } catch (e) {
+                                        // Fallback for markdown/raw string
+                                        return <pre style={{ color: '#D1D5DB', fontSize: '13px', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>{result}</pre>;
+                                    }
+                                })()}
                             </div>
                         </div>
                     ) : !error && !running && (

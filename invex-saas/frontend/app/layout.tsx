@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import { DisclaimerBanner } from "@/components/DisclaimerBanner";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${dmSans.variable} ${playfair.variable}`}>
       <body className="bg-[#0A0A0A] text-white font-sans antialiased">
         {children}
+        <DisclaimerBanner />
       </body>
     </html>
   );

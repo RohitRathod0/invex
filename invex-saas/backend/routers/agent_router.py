@@ -1,20 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from models.api_models import RunAgentRequest
 from services.crew_service import run_crew_agent
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+limiter = Limiter(key_func=get_remote_address)
 
 @router.post("/run")
-async def run_crew_agent_endpoint(request: RunAgentRequest):
+@limiter.limit("3/hour")
+async def run_crew_agent_endpoint(request: Request, body: RunAgentRequest):
     """
     Trigger a CrewAI crew run with a user message.
+    Rate limited: 3 AI report generations per hour per IP.
     """
-    # For MVP, we run synchronously (awaited) but utilizing asyncio.to_thread in service
-    result = await run_crew_agent(request.message, request.session_id, request.inputs)
+    result = await run_crew_agent(body.message, body.session_id, body.inputs)
     
     if result["status"] == "failed":
-        # We might still return 200 with error info, or 500 depending on client expectation
-        # JSON spec says: "error": "string or null" in response
         return result
         
     return result

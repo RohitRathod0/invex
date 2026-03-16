@@ -8,6 +8,11 @@ import { useAppStore } from '@/stores/useAppStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/api/apiClient';
+import { SectorRadar } from '../components/market/SectorRadar';
+import { EarningsAnalyzer } from '../components/market/EarningsAnalyzer';
+import { InsiderAlerts } from '../components/market/InsiderAlerts';
+import { SocialSentiment } from '../components/market/SocialSentiment';
+import { ResearchAssistantModal } from '../components/market/ResearchAssistantModal';
 
 // ——— Types ———
 interface Ticker { key: string; label: string; value: string; change: string; up: boolean; }
@@ -148,6 +153,14 @@ export const DashboardPage = () => {
                 </div>
             </div>
 
+            {/* Sector Radar & Earnings Block */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <SectorRadar />
+                <EarningsAnalyzer />
+                <InsiderAlerts />
+                <SocialSentiment />
+            </div>
+
             {/* Main grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Portfolio donut */}
@@ -248,6 +261,9 @@ export const DashboardPage = () => {
                     </div>
                 </div>
             </div>
+            
+            {/* Global Floating AI Research Assistant */}
+            <ResearchAssistantModal />
         </div>
     );
 };
