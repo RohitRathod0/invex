@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, MessageSquare, Activity, FileText, TrendingUp, RefreshCw, CheckCircle, AlertCircle, MinusCircle, ArrowRight } from 'lucide-react';
+import { OnboardingBanner } from '@/components/ui/OnboardingBanner';
 
 // ─── Types ─────────────────────────────────
 type Ticker = { label: string; value: string; change: string; up: boolean };
@@ -90,6 +91,9 @@ export default function DashboardPage() {
                     + New Analysis
                 </a>
             </div>
+
+            {/* ── Onboarding Banner (shows if profile not set) ── */}
+            <OnboardingBanner />
 
             {/* ── Page body — full width ── */}
             <div style={{ padding: '32px 40px' }}>

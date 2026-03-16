@@ -3,9 +3,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Brain, Newspaper, TrendingUp, ShieldCheck, BookOpen,
     Send, RefreshCw, Mic, ChevronRight, User, Bot,
-    AlertTriangle, Zap, BarChart2, Clock, X
+    AlertTriangle, Zap, BarChart2, Clock, X, ArrowUp
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import ModeSelector, { MODES as PremiumModes } from '../../src/components/chat/ModeSelector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Mode = 'agent-debrief' | 'news-radar' | 'what-if' | 'calm-mode' | 'memory' | 'default';
@@ -41,7 +42,7 @@ interface UserMemory {
 }
 
 // ─── Mode config ──────────────────────────────────────────────────────────────
-const MODES: { id: Mode; label: string; icon: React.FC<{ size?: number; color?: string }>; color: string; desc: string; starters: string[] }[] = [
+const MODES: { id: Mode; label: string; icon: React.ElementType; color: string; desc: string; starters: string[] }[] = [
     {
         id: 'agent-debrief', label: 'Agent Debrief', icon: Brain, color: '#C8F135',
         desc: 'Ask why the AI made specific recommendations',
@@ -236,7 +237,7 @@ export default function ChatPage() {
             const welcome: Message = {
                 id: 'welcome',
                 role: 'ai',
-                content: `👋 Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, ${mem.name.split(' ')[0]}!\n\nI'm your Invex AI co-pilot. I have 5 modes to help you invest smarter:\n\n🧠 Agent Debrief — Understand WHY I made any recommendation\n📰 News Radar — How today's news affects YOUR portfolio\n🔮 What-If — Simulate any investment scenario with live charts\n🛡️ Calm Mode — Talk me through market anxiety before you act\n📚 My AI — I remember your history and personalize advice\n\nSelect a mode on the left, or just ask me anything.`,
+                content: `👋 Hi ${mem.name.split(' ')[0]}, I am your AI investment agent! What do you want to know more about?`,
                 mode: 'default', type: 'text', timestamp: new Date(),
             };
             setMessages([welcome]);
@@ -335,30 +336,7 @@ export default function ChatPage() {
             {/* ── LEFT PANEL (260px) ── */}
             <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', background: '#0D0D0D', overflowY: 'auto' }}>
 
-                {/* Mode selector */}
-                <div style={{ padding: '16px 14px 8px' }}>
-                    <p style={{ fontSize: '10px', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '10px', paddingLeft: '4px' }}>Modes</p>
-                    {MODES.map(m => {
-                        const active = mode === m.id;
-                        return (
-                            <button key={m.id} onClick={() => setMode(m.id)} style={{
-                                width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '12px', marginBottom: '4px',
-                                background: active ? `${m.color}12` : 'transparent',
-                                border: active ? `1px solid ${m.color}25` : '1px solid transparent',
-                                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
-                                borderLeft: active ? `3px solid ${m.color}` : '3px solid transparent',
-                            }}>
-                                <m.icon size={15} color={active ? m.color : '#4B5563'} />
-                                <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontSize: '13px', fontWeight: 600, color: active ? '#fff' : '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</p>
-                                    <p style={{ fontSize: '11px', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.desc}</p>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
 
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '8px 14px' }} />
 
                 {/* Memory card */}
                 {memory && (
@@ -392,7 +370,7 @@ export default function ChatPage() {
                         ].map(f => (
                             <div key={f.key} style={{ marginBottom: '8px' }}>
                                 <label style={{ fontSize: '10px', color: '#6B7280', display: 'block', marginBottom: '3px' }}>{f.label}</label>
-                                <input value={(memory as Record<string, string>)[f.key]} onChange={e => {
+                                <input value={(memory as any)[f.key]} onChange={e => {
                                     const upd = { ...memory, [f.key]: e.target.value };
                                     setMemory(upd); saveMemory(upd);
                                 }} style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px', color: '#fff', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
@@ -484,29 +462,42 @@ export default function ChatPage() {
 
                 {/* Input bar */}
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', padding: '16px 24px', background: '#0A0A0A', flexShrink: 0 }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', background: 'rgba(255,255,255,0.04)', border: `1px solid ${activeCfg ? activeCfg.color + '25' : 'rgba(255,255,255,0.1)'}`, borderRadius: '16px', padding: '12px 16px', transition: 'border-color 0.2s' }}>
-                        <textarea
-                            ref={inputRef}
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={handleKey}
-                            placeholder={
-                                mode === 'what-if' ? "e.g. What if I invested ₹1L in Nifty 50 last January?" :
-                                    mode === 'calm-mode' ? "Tell me what's worrying you about the market..." :
-                                        mode === 'agent-debrief' ? "Ask about any part of the analysis..." :
-                                            mode === 'news-radar' ? "Which news should I care about for my portfolio?" :
-                                                "Ask anything about your investments..."
-                            }
-                            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: '#fff', fontSize: '14px', resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: '120px', minHeight: '22px' }}
-                            rows={1}
-                        />
-                        <button onClick={() => send()} disabled={!input.trim() || sending} style={{
-                            width: '36px', height: '36px', borderRadius: '10px', border: 'none', cursor: (!input.trim() || sending) ? 'not-allowed' : 'pointer',
-                            background: (!input.trim() || sending) ? 'rgba(255,255,255,0.08)' : (activeCfg?.color || '#C8F135'),
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s',
-                        }}>
-                            <Send size={16} color={(!input.trim() || sending) ? '#374151' : '#000'} />
-                        </button>
+                    <div className="relative">
+                        <div className="flex items-end gap-3 bg-[rgba(255,255,255,0.06)] border border-white/10 rounded-2xl px-4 py-3 focus-within:border-white/20 transition-all shadow-lg">
+                            <div className="pb-[2px]">
+                                <ModeSelector
+                                    activeMode={PremiumModes.find(m => m.id === (mode === 'memory' ? 'my-ai' : mode)) || PremiumModes[0]}
+                                    onModeChange={(m) => setMode((m.id === 'my-ai' ? 'memory' : m.id) as any)}
+                                />
+                            </div>
+                            <textarea
+                                ref={inputRef}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={handleKey}
+                                placeholder={
+                                    mode === 'what-if' ? "Run a scenario... e.g. 'What if I invested ₹1L in Gold last year?'" :
+                                        mode === 'calm-mode' ? "Tell me what's worrying you about the market..." :
+                                            mode === 'agent-debrief' ? "Ask about any analysis... e.g. 'Why did you rate NIFTY 50 a BUY?'" :
+                                                mode === 'news-radar' ? "Ask about news... e.g. 'How does RBI rate hold affect my portfolio?'" :
+                                                    mode === 'memory' ? "Ask anything... e.g. 'What have you learned about me so far?'" :
+                                                        "Ask anything about your investments..."
+                                }
+                                className="flex-1 bg-transparent border-0 focus:ring-0 resize-none py-1.5 max-h-48 text-white placeholder-gray-500 text-[15px] outline-none"
+                                rows={1}
+                            />
+                            <button onClick={() => send()} disabled={!input.trim() || sending}
+                                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors duration-300 flex-shrink-0 mb-[2px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{
+                                    backgroundColor: (!input.trim() || sending) ? 'rgba(255,255,255,0.1)' : (activeCfg?.color || '#C8F135')
+                                }}>
+                                {sending ? (
+                                    <RefreshCw size={18} className="animate-spin text-black" />
+                                ) : (
+                                    <ArrowUp size={18} className={(!input.trim() || sending) ? "text-gray-500" : "text-black"} />
+                                )}
+                            </button>
+                        </div>
                     </div>
                     <p style={{ fontSize: '10px', color: '#2D3748', textAlign: 'center', marginTop: '8px' }}>
                         Press Enter to send · Shift+Enter for new line · Chats saved locally

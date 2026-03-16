@@ -7,6 +7,16 @@ import { KnowledgePage } from './pages/KnowledgePage';
 import { LoginPage } from './pages/LoginPage';
 import { useAuthStore } from './stores/useAuthStore';
 
+import { PortfolioPage } from './pages/PortfolioPage';
+
+// Placeholder Pages
+const AnalysisPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Analysis Page Placeholder</h1></div>;
+const ScreenerPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Screener Page Placeholder</h1></div>;
+const GoalsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Goals Page Placeholder</h1></div>;
+const AlertsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Alerts Page Placeholder</h1></div>;
+const NewsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Market News Page Placeholder</h1></div>;
+const SettingsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Settings Page Placeholder</h1></div>;
+
 // Redirect to /login if not authenticated
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore();
@@ -30,10 +40,18 @@ function App() {
 
         {/* Protected app routes */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          <Route path="/" element={<ChatPage />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/chat/:sessionId" element={<ChatPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/analysis" element={<AnalysisPage />} />
+          <Route path="/screener" element={<ScreenerPage />} />
+          <Route path="/goals" element={<GoalsPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/news" element={<NewsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import {
     Bot, MessageSquare, Database, Settings, LayoutDashboard,
-    LogOut, Bell, X, Loader2
+    LogOut, Bell, X, Loader2, PieChart, TrendingUp, Search, Target, Newspaper
 } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/stores/useAuthStore';
 import ReactMarkdown from 'react-markdown';
+import { IndexBar } from '../market/IndexBar';
 
 const SidebarItem = ({ icon: Icon, label, to, active }: any) => (
     <Link to={to}
@@ -90,13 +91,29 @@ export const AppLayout = () => {
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-1">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     <SidebarItem icon={LayoutDashboard} label="Dashboard" to="/dashboard"
                         active={location.pathname === '/dashboard'} />
-                    <SidebarItem icon={MessageSquare} label="Chat" to="/"
+                    <SidebarItem icon={PieChart} label="Portfolio" to="/portfolio"
+                        active={location.pathname === '/portfolio'} />
+                    <SidebarItem icon={TrendingUp} label="Analysis" to="/analysis"
+                        active={location.pathname === '/analysis'} />
+                    <SidebarItem icon={MessageSquare} label="Chat" to="/chat"
                         active={location.pathname === '/' || location.pathname.startsWith('/chat')} />
-                    <SidebarItem icon={Database} label="Knowledge Base" to="/knowledge"
-                        active={location.pathname === '/knowledge'} />
+
+                    <div className="my-2 border-t border-white/10" />
+
+                    <SidebarItem icon={Search} label="Screener" to="/screener"
+                        active={location.pathname === '/screener'} />
+                    <SidebarItem icon={Target} label="Goals" to="/goals"
+                        active={location.pathname === '/goals'} />
+                    <SidebarItem icon={Bell} label="Alerts" to="/alerts"
+                        active={location.pathname === '/alerts'} />
+
+                    <div className="my-2 border-t border-white/10" />
+
+                    <SidebarItem icon={Newspaper} label="Market News" to="/news"
+                        active={location.pathname === '/news'} />
                     <SidebarItem icon={Settings} label="Settings" to="/settings"
                         active={location.pathname === '/settings'} />
 
@@ -143,7 +160,8 @@ export const AppLayout = () => {
             </aside>
 
             {/* ── Main content ── */}
-            <main className="flex-1 flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
+            <main className="flex-1 flex flex-col bg-[#050505] text-gray-200 overflow-y-auto overflow-x-hidden">
+                <IndexBar />
                 <Outlet />
             </main>
 
