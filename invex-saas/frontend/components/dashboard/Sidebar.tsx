@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Briefcase, Crosshair, Target, Search, Diamond, TrendingUp, BarChart3, Bell, MessageSquare, Settings, LogOut } from 'lucide-react';
+import { Briefcase, Crosshair, Target, Search, Diamond, TrendingUp, BarChart3, Bell, MessageSquare, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -19,6 +19,7 @@ const NAV_TOOLS = [
 const NAV_OTHER = [
     { icon: MessageSquare, label: 'Chat', href: '/chat' },
     { icon: Bell, label: 'Market News', href: '/news' },
+    { icon: ShieldCheck, label: 'Security', href: '/security' },
     { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 

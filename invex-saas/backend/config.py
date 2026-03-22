@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
 
+    # Security
+    SECURITY_SECRET: str = "change-me-in-production-please"  # Used for Fernet key derivation
+    JWT_SECRET: str = "change-me-jwt-secret"                  # Signing JWTs
+    ENABLE_2FA: bool = True                                    # Toggle OTP requirement
+    ENABLE_REQUEST_SIGNING: bool = False                       # Enable HMAC header verification
+
     # CORS — explicit whitelist. Add prod domain here when deploying.
     # Dev ports: 5173 (Vite), 3000 (Next.js)
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

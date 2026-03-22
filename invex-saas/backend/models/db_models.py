@@ -40,3 +40,46 @@ class RiskProfile(Base):
     risk_label = Column(String(30))   # Conservative / Moderate / Aggressive
     answers = Column(Text)            # JSON-encoded answers
     created_at = Column(DateTime, default=func.now())
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    name = Column(String)
+    email = Column(String, unique=True, index=True)
+    phone = Column(String, nullable=True)
+    password_hash = Column(String, nullable=True)
+    status = Column(String, default="ACTIVE")
+    last_login = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=func.now())
+
+class UserDevice(Base):
+    __tablename__ = "user_devices"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, index=True)
+    device_id = Column(String)
+    is_trusted = Column(Boolean, default=True)
+    last_seen_at = Column(DateTime, default=func.now())
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, index=True)
+    action = Column(String)
+    details = Column(Text) # JSON serialized
+    ip_address = Column(String)
+    risk_level = Column(String, default="LOW")
+    user_agent = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=func.now())
+
+class DeletionRequest(Base):
+    __tablename__ = "deletion_requests"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, index=True)
+    reason = Column(Text)
+    status = Column(String, default="PENDING")
+    requested_at = Column(DateTime, default=func.now())
