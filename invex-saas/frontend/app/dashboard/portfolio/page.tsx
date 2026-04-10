@@ -28,7 +28,7 @@ export default function PortfolioPage() {
 
         const fetchPrices = async () => {
             try {
-                const res = await fetch(`/api/v1/market/price?symbols=${symbolStrings}`);
+                const res = await fetch(`/api/v1/market/price?symbols=${encodeURIComponent(symbolStrings)}`);
                 const data = await res.json();
                 if (data.prices) {
                     const priceMap: Record<string, number> = {};
