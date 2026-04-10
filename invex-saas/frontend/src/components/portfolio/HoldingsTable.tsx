@@ -4,38 +4,12 @@ import { cn } from '@/utils/cn';
 
 interface HoldingsTableProps {
     holdings: any[];
+    prices: Record<string, number>;
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
 }
 
-export const HoldingsTable = ({ holdings, onEdit, onDelete }: HoldingsTableProps) => {
-    const [prices, setPrices] = useState<Record<string, number>>({});
-
-    useEffect(() => {
-        if (!holdings?.length) return;
-        const symbols = Array.from(new Set(holdings.map(h => h.symbol))).join(',');
-
-        const fetchPrices = async () => {
-            try {
-                const res = await fetch(`/api/v1/market/price?symbols=${symbols}`);
-                const data = await res.json();
-                if (data.prices) {
-                    const priceMap: Record<string, number> = {};
-                    data.prices.forEach((p: any) => {
-                        priceMap[p.symbol] = p.price;
-                    });
-                    setPrices(priceMap);
-                }
-            } catch (error) {
-                console.error('Failed to fetch prices for table', error);
-            }
-        };
-
-        fetchPrices();
-        const interval = setInterval(fetchPrices, 30000); // 30s as spec
-        return () => clearInterval(interval);
-    }, [holdings]);
-
+export const HoldingsTable = ({ holdings, prices, onEdit, onDelete }: HoldingsTableProps) => {
     if (!holdings || holdings.length === 0) {
         return (
             <div className="bg-[#111] border border-white/5 rounded-2xl p-10 flex flex-col items-center justify-center text-center h-full">

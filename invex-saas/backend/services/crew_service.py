@@ -23,9 +23,9 @@ if crew_env_file.exists():
 
 try:
     from invex.crew import Invex
-    print(f"✅ Successfully imported Invex from {CREW_CORE_DIR / 'src'}")
+    print(f"[OK] Successfully imported Invex from {CREW_CORE_DIR / 'src'}")
 except ImportError as e:
-    print(f"⚠️  Warning: Could not import Invex from {CREW_CORE_DIR / 'src'}: {e}")
+    print(f"[WARNING] Could not import Invex from {CREW_CORE_DIR / 'src'}: {e}")
     Invex = None
 
 

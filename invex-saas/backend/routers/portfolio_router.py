@@ -93,23 +93,152 @@ def delete_holding(request: Request, holding_id: str, db: Session = Depends(get_
     db.commit()
     return {"status": "success"}
 
+@router.get("/price-on-date")
+@limiter.limit("30/minute")
+async def get_price_on_date(
+    request: Request,
+    symbol: str,
+    date: str,
+    exchange: str = "NSE"
+):
+    """
+    Fetch the closing price of a stock on a specific date using yfinance.
+    Used by the Add Holding modal to auto-populate the buy price.
+    """
+    import yfinance as yf
+    import asyncio
+    from services.data_aggregator import resolve_yf_symbol
+
+    # Resolve ticker — auto-adds .NS for Indian stocks
+    # Override: if exchange is BSE, use .BO
+    def _get_yf_symbol():
+        s = symbol.strip().upper()
+        if exchange.upper() == "BSE" and not s.endswith(".BO"):
+            return s + ".BO"
+        if exchange.upper() == "US":
+            return s  # US ticker, no suffix
+        return resolve_yf_symbol(s)
+
+    yf_sym = _get_yf_symbol()
+    is_inr = yf_sym.endswith(".NS") or yf_sym.endswith(".BO")
+
+    def _fetch():
+        try:
+            import math
+            from datetime import timedelta
+
+            target = datetime.strptime(date, "%Y-%m-%d")
+            # Fetch a 10-day window to cover weekends, holidays, and market closures
+            start = (target - timedelta(days=10)).strftime("%Y-%m-%d")
+            end   = (target + timedelta(days=2)).strftime("%Y-%m-%d")
+
+            ticker = yf.Ticker(yf_sym)
+            hist = ticker.history(start=start, end=end, auto_adjust=True)
+
+            if hist.empty:
+                return None, f"No data found for '{yf_sym}'. Check symbol and exchange."
+
+            # DatetimeIndex uses .tz (not .tzinfo) — strip timezone so we can compare
+            if hist.index.tz is not None:
+                hist.index = hist.index.tz_localize(None)
+
+            # Narrow to rows on or before the requested date
+            hist = hist[hist.index <= target]
+            if hist.empty:
+                return None, f"No trading day found on or before {date} for {yf_sym}."
+
+            raw_price = hist["Close"].iloc[-1]
+
+            # Guard against NaN / 0 / Inf prices (can happen with bad yfinance data)
+            if raw_price is None or (isinstance(raw_price, float) and (math.isnan(raw_price) or math.isinf(raw_price))):
+                return None, f"Price data for {yf_sym} on {date} is invalid (NaN/Inf). Try a different date."
+            if float(raw_price) <= 0:
+                return None, f"Price data for {yf_sym} on {date} is zero or negative — data may be unavailable."
+
+            price = round(float(raw_price), 2)
+            actual_date = hist.index[-1].strftime("%Y-%m-%d")
+            return {"price": price, "actual_date": actual_date, "currency": "INR" if is_inr else "USD"}, None
+
+        except ValueError as ve:
+            return None, f"Invalid date format '{date}'. Expected YYYY-MM-DD."
+        except Exception as e:
+            return None, f"Failed to fetch price for {yf_sym}: {str(e)}"
+
+    result, error = await asyncio.to_thread(_fetch)
+
+    if error or result is None:
+        raise HTTPException(status_code=404, detail=error or "Price not found")
+
+    return result
+
+
 @router.get("/performance/{user_id}")
-def get_performance(user_id: str, period: str = "1M", db: Session = Depends(get_db)):
-    # This is a mock API returns for the performance chart until real calculation built
-    base_value: float = 100000.0
+
+async def get_performance(user_id: str, period: str = "1M", db: Session = Depends(get_db)):
+    """
+    Returns real portfolio value timeseries by fetching historical closing prices
+    from yfinance for each holding and computing daily portfolio value.
+    """
+    import asyncio
+    import yfinance as yf
     from datetime import timedelta
-    points = 30 if period == "1M" else 7 if period == "1W" else 90
-    data = []
-    
-    for i in range(points):
-        import random
-        base_value += random.uniform(-1000, 1500)
-        date = datetime.now() - timedelta(days=points - i)
-        data.append({
-            "date": date.strftime("%Y-%m-%d"),
-            "value": round(base_value, 2)
-        })
-    return data
+
+    period_map = {"1W": "7d", "1M": "1mo", "3M": "3mo", "1Y": "1y"}
+    yf_period = period_map.get(period, "1mo")
+
+    holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
+    if not holdings:
+        return []
+
+    from services.data_aggregator import resolve_yf_symbol
+
+    def fetch_history(symbol: str, exch: str, qty: float):
+        ticker_sym = resolve_yf_symbol(symbol, exch)
+        try:
+            ticker = yf.Ticker(ticker_sym)
+            hist = ticker.history(period=yf_period)
+            if hist.empty:
+                return None
+            result = {}
+            for date, row in hist.iterrows():
+                date_str = date.strftime("%Y-%m-%d")
+                result[date_str] = float(row["Close"]) * qty
+            return result
+        except Exception as e:
+            return None
+
+    # Run all fetches concurrently using threads
+    loop = asyncio.get_event_loop()
+    tasks = [
+        loop.run_in_executor(None, fetch_history, h.symbol, h.exchange, h.quantity)
+        for h in holdings
+    ]
+    results = await asyncio.gather(*tasks)
+
+    # Merge: sum up portfolio value per date across all holdings
+    portfolio_by_date: dict[str, float] = {}
+    for result in results:
+        if result:
+            for date_str, value in result.items():
+                portfolio_by_date[date_str] = portfolio_by_date.get(date_str, 0.0) + value
+
+    if not portfolio_by_date:
+        # Fallback: return invested value as flat line
+        total_invested = sum(h.quantity * h.avg_buy_price for h in holdings)
+        from datetime import timedelta
+        points = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365}.get(period, 30)
+        return [
+            {"date": (datetime.now() - timedelta(days=points - i)).strftime("%Y-%m-%d"),
+             "value": round(total_invested, 2)}
+            for i in range(points)
+        ]
+
+    # Sort by date and return
+    sorted_data = [
+        {"date": d, "value": round(v, 2)}
+        for d, v in sorted(portfolio_by_date.items())
+    ]
+    return sorted_data
 
 @router.post("/backtest/strategy")
 @limiter.limit("5/minute")
