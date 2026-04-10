@@ -8,10 +8,10 @@ import { LoginPage } from './pages/LoginPage';
 import { useAuthStore } from './stores/useAuthStore';
 
 import { PortfolioPage } from './pages/PortfolioPage';
+import { ScreenerPage } from './pages/ScreenerPage';
 
 // Placeholder Pages
 const AnalysisPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Analysis Page Placeholder</h1></div>;
-const ScreenerPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Screener Page Placeholder</h1></div>;
 const GoalsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Goals Page Placeholder</h1></div>;
 const AlertsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Alerts Page Placeholder</h1></div>;
 const NewsPage = () => <div className="p-8 text-white"><h1 className="text-3xl font-bold">Market News Page Placeholder</h1></div>;
