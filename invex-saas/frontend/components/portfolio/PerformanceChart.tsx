@@ -70,8 +70,12 @@ export const PerformanceChart = ({ userId = "0000-user", holdings = [] }: Perfor
 
     const fetchStockHistory = useCallback(async (symbol: string) => {
         setLoading(true);
+
+        const holding = holdings.find((h: any) => h.symbol === symbol);
+        const querySymbol = holding?.exchange ? `${symbol}|${holding.exchange}` : symbol;
+
         try {
-            const res = await fetch(`/api/v1/market/history?symbol=${symbol}&period=${period}`);
+            const res = await fetch(`/api/v1/market/history?symbol=${encodeURIComponent(querySymbol)}&period=${period}`);
             const json = await res.json();
             const raw: any[] = json.history ?? [];
             const mapped: ChartPoint[] = raw.map((p: any) => ({
@@ -81,7 +85,7 @@ export const PerformanceChart = ({ userId = "0000-user", holdings = [] }: Perfor
             setData(mapped);
 
             // Also fetch current price + currency for the badge
-            const priceRes = await fetch(`/api/v1/market/price?symbols=${symbol}`);
+            const priceRes = await fetch(`/api/v1/market/price?symbols=${encodeURIComponent(querySymbol)}`);
             const priceJson = await priceRes.json();
             const priceEntry = priceJson.prices?.[0];
             if (priceEntry) {
@@ -130,6 +134,7 @@ export const PerformanceChart = ({ userId = "0000-user", holdings = [] }: Perfor
 
     return (
         <div className="bg-white/[0.04] border border-white/[0.08] backdrop-blur-md rounded-2xl p-6 relative min-h-[420px]">
+            {console.log('Rendering PerformanceChart', { loading, dataLength: data.length, period, selectedStock })}
             {/* ── Header row ── */}
             <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
                 <div>

@@ -24,11 +24,11 @@ export default function PortfolioPage() {
 
     useEffect(() => {
         if (!holdings?.length) return;
-        const symbols = Array.from(new Set(holdings.map((h: any) => h.symbol))).join(',');
+        const symbolStrings = Array.from(new Set(holdings.map((h: any) => `${h.symbol}|${h.exchange}`))).join(',');
 
         const fetchPrices = async () => {
             try {
-                const res = await fetch(`/api/v1/market/price?symbols=${symbols}`);
+                const res = await fetch(`/api/v1/market/price?symbols=${symbolStrings}`);
                 const data = await res.json();
                 if (data.prices) {
                     const priceMap: Record<string, number> = {};

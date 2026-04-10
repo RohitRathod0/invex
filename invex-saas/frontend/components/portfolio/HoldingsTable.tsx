@@ -6,25 +6,26 @@ import { cn } from '@/lib/utils';
 
 interface HoldingsTableProps {
     holdings: any[];
+    prices?: any; // To accept the prices passed in from parent, but we fetch our own rich prices.
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
 }
 
 export const HoldingsTable = ({ holdings, onEdit, onDelete }: HoldingsTableProps) => {
-    const [prices, setPrices] = useState<Record<string, number>>({});
+    const [prices, setPrices] = useState<Record<string, {price: number; currency: string}>>({});
 
     useEffect(() => {
         if (!holdings?.length) return;
-        const symbols = Array.from(new Set(holdings.map(h => h.symbol))).join(',');
+        const symbolStrings = Array.from(new Set(holdings.map(h => `${h.symbol}|${h.exchange}`))).join(',');
 
         const fetchPrices = async () => {
             try {
-                const res = await fetch(`/api/v1/market/price?symbols=${symbols}`);
+                const res = await fetch(`/api/v1/market/price?symbols=${encodeURIComponent(symbolStrings)}`);
                 const data = await res.json();
                 if (data.prices) {
-                    const priceMap: Record<string, number> = {};
+                    const priceMap: Record<string, {price: number; currency: string}> = {};
                     data.prices.forEach((p: any) => {
-                        priceMap[p.symbol] = p.price;
+                        priceMap[p.symbol] = { price: p.price, currency: p.currency };
                     });
                     setPrices(priceMap);
                 }
@@ -67,25 +68,31 @@ export const HoldingsTable = ({ holdings, onEdit, onDelete }: HoldingsTableProps
                     </thead>
                     <tbody>
                         {holdings.map((h, i) => {
-                            const currentPrice = prices[h.symbol] || h.avg_buy_price;
+                            const marketData = prices[h.symbol];
+                            const currentPrice = marketData?.price || h.avg_buy_price;
+                            const currency = marketData?.currency || (h.exchange === 'US' ? 'USD' : 'INR');
+                            
                             const currentValue = h.quantity * currentPrice;
                             const investedValue = h.quantity * h.avg_buy_price;
                             const pnl = currentValue - investedValue;
                             const pnlPct = investedValue > 0 ? (pnl / investedValue) * 100 : 0;
                             const isPositive = pnl >= 0;
 
-                            const fmtCurrency = (v: number) => `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                            const fmtCurrency = (v: number, curr: string) => {
+                                const sym = curr === 'USD' ? '$' : '₹';
+                                return `${sym}${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+                            };
 
                             return (
                                 <tr key={h.id} className={cn("border-b border-white/5 hover:bg-white/[0.02] transition-colors", i % 2 === 0 ? "bg-[#0A0A0A]" : "bg-[#111]")}>
                                     <td className="py-4 px-6 font-semibold text-white">{h.symbol}</td>
                                     <td className="py-4 px-6 text-gray-300">{h.quantity}</td>
-                                    <td className="py-4 px-6 text-gray-400">{fmtCurrency(h.avg_buy_price)}</td>
-                                    <td className="py-4 px-6 text-white font-medium">{fmtCurrency(currentPrice)}</td>
-                                    <td className="py-4 px-6 text-right font-semibold text-white">{fmtCurrency(currentValue)}</td>
+                                    <td className="py-4 px-6 text-gray-400">{fmtCurrency(h.avg_buy_price, currency)}</td>
+                                    <td className="py-4 px-6 text-white font-medium">{fmtCurrency(currentPrice, currency)}</td>
+                                    <td className="py-4 px-6 text-right font-semibold text-white">{fmtCurrency(currentValue, currency)}</td>
                                     <td className="py-4 px-6 text-right">
                                         <div className={cn("font-semibold mb-0.5", isPositive ? "text-[#C8F135]" : "text-red-400")}>
-                                            {isPositive ? '+' : ''}{fmtCurrency(pnl)}
+                                            {isPositive ? '+' : ''}{fmtCurrency(pnl, currency)}
                                         </div>
                                         <div className={cn("text-xs", isPositive ? "text-[#C8F135]/70" : "text-red-400/70")}>
                                             {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%

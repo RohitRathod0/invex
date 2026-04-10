@@ -93,10 +93,20 @@ async def get_stock_price(symbols: List[str]) -> List[Dict[str, Any]]:
 async def get_stock_history(symbol: str, period: str) -> List[Dict[str, Any]]:
     """
     Fetch OHLCV history for a symbol.
+    Symbol can be bare (e.g. 'RELIANCE') or include an exchange hint
+    separated by '|' (e.g. 'TSLA|US', 'RELIANCE|NSE', 'INFY|BSE').
     Returns list of { date, value (=close), open, high, low, volume }.
     """
+    # Parse optional exchange hint
+    if '|' in symbol:
+        raw_symbol, exch_hint = symbol.split('|', 1)
+    else:
+        raw_symbol, exch_hint = symbol, ''
+
+    yf_sym = resolve_yf_symbol(raw_symbol, exch_hint)
+
     # Period strings are passed through to the aggregator which maps them internally
-    data = await aggregator.get_history(symbol, range_str=period)
+    data = await aggregator.get_history(yf_sym, range_str=period)
     if data:
         return [
             {

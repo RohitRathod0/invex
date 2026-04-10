@@ -104,7 +104,7 @@ class DataAggregator:
         """Fetch current price from Yahoo Finance."""
         try:
             import yfinance as yf
-            yf_sym = resolve_yf_symbol(symbol)
+            yf_sym = symbol # already resolved by caller
             ticker = yf.Ticker(yf_sym)
 
             # fast_info is the fastest path (no full download)
@@ -156,7 +156,7 @@ class DataAggregator:
 
         try:
             import yfinance as yf
-            yf_sym = resolve_yf_symbol(symbol)
+            yf_sym = symbol # already resolved by caller
             ticker = yf.Ticker(yf_sym)
             hist = ticker.history(period=yf_period, auto_adjust=True)
 
