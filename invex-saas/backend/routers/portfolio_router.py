@@ -49,50 +49,6 @@ class HoldingResponse(HoldingBase):
 # Realistically would come from JWT or Session.
 MOCK_USER_ID = "0000-user"
 
-@router.get("/{user_id}", response_model=List[HoldingResponse])
-@limiter.limit("30/minute")
-def get_portfolio(request: Request, user_id: str, db: Session = Depends(get_db)):
-    holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
-    return holdings
-
-@router.post("/holding", response_model=HoldingResponse)
-@limiter.limit("10/minute")
-def add_holding(request: Request, holding: HoldingCreate, db: Session = Depends(get_db)):
-    db_holding = Holding(
-        user_id=MOCK_USER_ID,
-        **holding.model_dump()
-    )
-    db.add(db_holding)
-    db.commit()
-    db.refresh(db_holding)
-    return db_holding
-
-@router.patch("/holding/{holding_id}", response_model=HoldingResponse)
-@limiter.limit("10/minute")
-def edit_holding(request: Request, holding_id: str, holding: HoldingUpdate, db: Session = Depends(get_db)):
-    db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
-    if not db_holding:
-        raise HTTPException(status_code=404, detail="Holding not found")
-        
-    update_data = holding.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_holding, key, value)
-        
-    db.commit()
-    db.refresh(db_holding)
-    return db_holding
-
-@router.delete("/holding/{holding_id}")
-@limiter.limit("10/minute")
-def delete_holding(request: Request, holding_id: str, db: Session = Depends(get_db)):
-    db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
-    if not db_holding:
-        raise HTTPException(status_code=404, detail="Holding not found")
-        
-    db.delete(db_holding)
-    db.commit()
-    return {"status": "success"}
-
 @router.get("/price-on-date")
 @limiter.limit("30/minute")
 async def get_price_on_date(
@@ -170,6 +126,51 @@ async def get_price_on_date(
         raise HTTPException(status_code=404, detail=error or "Price not found")
 
     return result
+
+@router.get("/{user_id}", response_model=List[HoldingResponse])
+@limiter.limit("30/minute")
+def get_portfolio(request: Request, user_id: str, db: Session = Depends(get_db)):
+    holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
+    return holdings
+
+@router.post("/holding", response_model=HoldingResponse)
+@limiter.limit("10/minute")
+def add_holding(request: Request, holding: HoldingCreate, db: Session = Depends(get_db)):
+    db_holding = Holding(
+        user_id=MOCK_USER_ID,
+        **holding.model_dump()
+    )
+    db.add(db_holding)
+    db.commit()
+    db.refresh(db_holding)
+    return db_holding
+
+@router.patch("/holding/{holding_id}", response_model=HoldingResponse)
+@limiter.limit("10/minute")
+def edit_holding(request: Request, holding_id: str, holding: HoldingUpdate, db: Session = Depends(get_db)):
+    db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not db_holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+        
+    update_data = holding.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_holding, key, value)
+        
+    db.commit()
+    db.refresh(db_holding)
+    return db_holding
+
+@router.delete("/holding/{holding_id}")
+@limiter.limit("10/minute")
+def delete_holding(request: Request, holding_id: str, db: Session = Depends(get_db)):
+    db_holding = db.query(Holding).filter(Holding.id == holding_id).first()
+    if not db_holding:
+        raise HTTPException(status_code=404, detail="Holding not found")
+        
+    db.delete(db_holding)
+    db.commit()
+    return {"status": "success"}
+
 
 
 @router.get("/performance/{user_id}")
