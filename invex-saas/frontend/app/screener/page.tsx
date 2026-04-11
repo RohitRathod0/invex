@@ -31,7 +31,7 @@ export default function ScreenerPage() {
       if (currentFilters.min_market_cap) params.append('min_market_cap', currentFilters.min_market_cap);
       if (currentFilters.max_market_cap) params.append('max_market_cap', currentFilters.max_market_cap);
 
-      const response = await fetch(`http://127.0.0.1:8000/market/screener?${params.toString()}`);
+      const response = await fetch(`http://127.0.0.1:8000/api/v1/market/screener?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch screener data');
       }

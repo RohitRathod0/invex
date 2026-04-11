@@ -22,10 +22,10 @@ if crew_env_file.exists():
                 os.environ.setdefault(key.strip(), val.strip())
 
 try:
-    from invex.crew import Invex
-    print(f"[OK] Successfully imported Invex from {CREW_CORE_DIR / 'src'}")
+    from invex.ai_router import InvexV2 as Invex
+    print(f"[OK] Successfully imported InvexV2 AI Router from {CREW_CORE_DIR / 'src'}")
 except ImportError as e:
-    print(f"[WARNING] Could not import Invex from {CREW_CORE_DIR / 'src'}: {e}")
+    print(f"[WARNING] Could not import InvexV2 from {CREW_CORE_DIR / 'src'}: {e}")
     Invex = None
 
 
@@ -88,24 +88,27 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
         'mutual_funds': asset_preferences.get('mutual_funds', True),
         'gold': asset_preferences.get('gold', True),
         'crypto': asset_preferences.get('crypto', True),
+        'execution_mode': inputs.get('execution_mode') if inputs else None,
     }
 
     try:
-        result = await asyncio.to_thread(_execute_crew_blocking, crew_inputs, asset_preferences)
+        invex_crew = Invex()
+        invex_crew.user_preferences = asset_preferences
         
-        # CrewAI 0.11+ Returns a CrewOutput object. 
-        # If output_json was used, it parses it into json_dict.
-        parsed_result = None
-        if hasattr(result, "json_dict") and result.json_dict:
-            parsed_result = result.json_dict
-        else:
-            # Fallback to string if JSON parsing failed
-            parsed_result = str(result)
+        # New V2 async execution
+        result = await invex_crew.kickoff_async(crew_inputs)
+        
+        # Result contains execution metadata and structured data
+        parsed_result = result.get("result", {}).get("structured_data")
+        if not parsed_result:
+            parsed_result = result.get("result", {}).get("report", str(result))
 
         return {
             "run_id": run_id,
             "session_id": session_id,
-            "status": "completed",
+            "status": result.get("status", "completed"),
+            "execution_mode": result.get("mode", "unknown"),
+            "execution_time": result.get("execution_time", 0.0),
             "result": parsed_result,
             "created_at": datetime.now().isoformat()
         }
@@ -118,13 +121,3 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
             "result": None,
             "created_at": datetime.now().isoformat()
         }
-
-
-def _execute_crew_blocking(inputs: Dict[str, Any], asset_preferences: Dict[str, bool]):
-    """Blocking wrapper for crew execution (runs in thread pool to avoid blocking event loop)."""
-    # Ensure outputs/ dir exists relative to current working directory
-    os.makedirs("outputs", exist_ok=True)
-    invex_crew = Invex()
-    invex_crew.user_preferences = asset_preferences
-    result = invex_crew.crew().kickoff(inputs=inputs)
-    return result

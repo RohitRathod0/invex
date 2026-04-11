@@ -14,7 +14,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 class AlertCreate(BaseModel):
     user_id: str = "0000-user"
     symbol: str
-    condition: str   # "above" or "below"
+    condition: str   # "above", "below", "percent_up", "percent_down"
     target_price: float
     note: Optional[str] = None
 
@@ -77,7 +77,7 @@ def check_alerts(user_id: str, db: Session = Depends(get_db)):
 
     # Batch fetch prices
     symbols = list(set(a.symbol for a in active_alerts))
-    prices: dict[str, float] = {}
+    prices: dict[str, dict[str, float]] = {}
     for sym in symbols:
         try:
             # Try .NS suffix for Indian stocks if no dot in symbol
@@ -85,17 +85,32 @@ def check_alerts(user_id: str, db: Session = Depends(get_db)):
             ticker = yf.Ticker(yf_sym)
             info = ticker.info
             price = info.get("currentPrice") or info.get("regularMarketPrice") or 0
-            prices[sym] = float(price)
+            prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose") or price
+            prices[sym] = {'current': float(price), 'prev_close': float(prev_close)}
         except Exception:
-            prices[sym] = 0.0
+            prices[sym] = {'current': 0.0, 'prev_close': 0.0}
 
     now = datetime.utcnow()
     for alert in active_alerts:
-        current = prices.get(alert.symbol, 0)
+        data = prices.get(alert.symbol, {'current': 0, 'prev_close': 0})
+        current = data['current']
+        prev = data['prev_close']
+        
         if current == 0:
             continue
-        hit = (alert.condition == "above" and current >= alert.target_price) or \
-              (alert.condition == "below" and current <= alert.target_price)
+            
+        hit = False
+        if alert.condition == "above":
+            hit = current >= alert.target_price
+        elif alert.condition == "below":
+            hit = current <= alert.target_price
+        elif alert.condition == "percent_up" and prev > 0:
+            pct_change = ((current - prev) / prev) * 100
+            hit = pct_change >= alert.target_price
+        elif alert.condition == "percent_down" and prev > 0:
+            pct_change = ((current - prev) / prev) * 100
+            hit = pct_change <= -alert.target_price
+
         if hit:
             alert.is_active = False
             alert.triggered_at = now

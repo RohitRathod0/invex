@@ -1,16 +1,34 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Bell } from 'lucide-react';
 
 interface CreateAlertModalProps {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { symbol: string; condition: string; target_price: number; note?: string }) => void;
+    initialValues?: { symbol?: string; condition?: string; target_price?: string; note?: string };
 }
 
-export const CreateAlertModal = ({ isOpen, onClose, onCreate }: CreateAlertModalProps) => {
-    const [form, setForm] = useState({ symbol: '', condition: 'above', target_price: '', note: '' });
+export const CreateAlertModal = ({ isOpen, onClose, onCreate, initialValues }: CreateAlertModalProps) => {
+    const [form, setForm] = useState({ 
+        symbol: initialValues?.symbol || '', 
+        condition: initialValues?.condition || 'above', 
+        target_price: initialValues?.target_price || '', 
+        note: initialValues?.note || '' 
+    });
+
+    // Reset form when modal opens with new initialValues
+    useEffect(() => {
+        if (isOpen) {
+            setForm({
+                symbol: initialValues?.symbol || '', 
+                condition: initialValues?.condition || 'below', // default to below if prefilling from portfolio? Actually, we'll let initialValues dictate.
+                target_price: initialValues?.target_price || '', 
+                note: initialValues?.note || ''
+            });
+        }
+    }, [isOpen, initialValues]);
 
     if (!isOpen) return null;
 
@@ -61,10 +79,14 @@ export const CreateAlertModal = ({ isOpen, onClose, onCreate }: CreateAlertModal
                             >
                                 <option value="above">Price goes above</option>
                                 <option value="below">Price goes below</option>
+                                <option value="percent_up">Stock jumps more than (%)</option>
+                                <option value="percent_down">Stock drops more than (%)</option>
                             </select>
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-400">Target Price (₹)</label>
+                            <label className="text-sm font-medium text-gray-400">
+                                {form.condition.includes('percent') ? 'Target Percentage (%)' : 'Target Price (₹)'}
+                            </label>
                             <input
                                 required type="number" step="any" min="0" placeholder="0.00"
                                 value={form.target_price}

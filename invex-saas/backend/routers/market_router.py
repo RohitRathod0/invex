@@ -169,20 +169,17 @@ async def get_social_sentiment(request: Request, symbol: str):
     results = await analyzer.analyze_stock_sentiment(symbol)
     return results
 
+from typing import Optional
+
 @router.get("/screener")
-@limiter.limit("20/minute")
 async def get_screener(
     request: Request,
-    sector: str = Query(None, description="Sector to filter by"),
-    min_pe: float = Query(None, description="Minimum P/E Ratio"),
-    max_pe: float = Query(None, description="Maximum P/E Ratio"),
-    min_market_cap: float = Query(None, description="Minimum Market Cap"),
-    max_market_cap: float = Query(None, description="Maximum Market Cap")
+    sector: Optional[str] = Query(None, description="Sector to filter by"),
+    min_pe: Optional[float] = Query(None, description="Minimum P/E Ratio"),
+    max_pe: Optional[float] = Query(None, description="Maximum P/E Ratio"),
+    min_market_cap: Optional[float] = Query(None, description="Minimum Market Cap"),
+    max_market_cap: Optional[float] = Query(None, description="Maximum Market Cap")
 ):
-    """
-    Returns filtered stock results based on provided criteria.
-    Rate limited: 20/minute.
-    """
     from services.screener_service import screener_service
     results = screener_service.screen_assets(
         sector=sector,

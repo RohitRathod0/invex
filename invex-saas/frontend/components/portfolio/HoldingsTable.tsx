@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Pencil, Trash2, ArrowUpDown } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface HoldingsTableProps {
     holdings: any[];
-    prices?: any; // To accept the prices passed in from parent, but we fetch our own rich prices.
+    prices?: Record<string, number>;
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
+    onAlert: (holding: any, currentPrice: number) => void;
 }
 
-export const HoldingsTable = ({ holdings, onEdit, onDelete }: HoldingsTableProps) => {
+export const HoldingsTable = ({ holdings, onEdit, onDelete, onAlert }: HoldingsTableProps) => {
     const [prices, setPrices] = useState<Record<string, {price: number; currency: string}>>({});
 
     useEffect(() => {
@@ -100,6 +101,13 @@ export const HoldingsTable = ({ holdings, onEdit, onDelete }: HoldingsTableProps
                                     </td>
                                     <td className="py-4 px-6">
                                         <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => onAlert(h, currentPrice)} 
+                                                title="Set Alert"
+                                                className="p-1.5 text-gray-500 hover:text-[#C8F135] hover:bg-[#C8F135]/10 rounded transition-colors"
+                                            >
+                                                <Bell size={14} />
+                                            </button>
                                             <button onClick={() => onEdit(h.id)} className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"><Pencil size={14} /></button>
                                             <button onClick={() => onDelete(h.id)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={14} /></button>
                                         </div>

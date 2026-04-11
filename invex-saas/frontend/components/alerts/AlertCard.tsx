@@ -19,7 +19,8 @@ interface AlertCardProps {
 
 export const AlertCard = ({ alert, onDelete }: AlertCardProps) => {
     const isTriggered = !alert.is_active && alert.triggered_at;
-    const isAbove = alert.condition === 'above';
+    const isAboveOrUp = alert.condition === 'above' || alert.condition === 'percent_up';
+    const isPercent = alert.condition.includes('percent');
 
     return (
         <div className={`relative bg-[#0D0D0D] border rounded-2xl p-5 flex flex-col gap-3 transition-all ${isTriggered ? 'border-[#C8F135]/30 shadow-[0_0_20px_rgba(200,241,53,0.07)]' : 'border-white/[0.07] hover:border-white/[0.14]'}`}>
@@ -40,9 +41,10 @@ export const AlertCard = ({ alert, onDelete }: AlertCardProps) => {
             </div>
 
             {/* Condition pill */}
-            <div className={`flex items-center gap-2 text-sm font-medium w-fit px-3 py-1.5 rounded-full ${isAbove ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                {isAbove ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {isAbove ? 'Above' : 'Below'} ₹{alert.target_price.toLocaleString('en-IN')}
+            <div className={`flex items-center gap-2 text-sm font-medium w-fit px-3 py-1.5 rounded-full ${isAboveOrUp ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                {isAboveOrUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                {alert.condition === 'percent_up' ? 'Jumps' : alert.condition === 'percent_down' ? 'Drops' : isAboveOrUp ? 'Above' : 'Below'} 
+                {isPercent ? ` ${alert.target_price}%` : ` ₹${alert.target_price.toLocaleString('en-IN')}`}
             </div>
 
             {/* Status badge */}

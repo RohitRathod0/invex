@@ -7,6 +7,7 @@ import { AddHoldingModal } from '@/components/portfolio/AddHoldingModal';
 import { AllocationChart } from '@/components/portfolio/AllocationChart';
 import { PerformanceChart } from '@/components/portfolio/PerformanceChart';
 import { HoldingsTable } from '@/components/portfolio/HoldingsTable';
+import { CreateAlertModal } from '@/components/alerts/CreateAlertModal';
 
 const USER_ID = "0000-user";
 
@@ -14,6 +15,7 @@ export default function PortfolioPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [holdings, setHoldings] = useState<any[]>([]);
     const [prices, setPrices] = useState<Record<string, number>>({});
+    const [alertInitialData, setAlertInitialData] = useState<{ symbol?: string; condition?: string; target_price?: string; note?: string } | null>(null);
 
     useEffect(() => {
         fetch(`/api/v1/portfolio/${USER_ID}`)
@@ -77,6 +79,31 @@ export default function PortfolioPage() {
         }
     };
 
+    const handleAlertClick = (holding: any, currentPrice: number) => {
+        // Pre-fill a stop-loss at 5% below current price
+        const target = (currentPrice * 0.95).toFixed(2);
+        setAlertInitialData({
+            symbol: holding.symbol,
+            condition: 'below',
+            target_price: target,
+            note: 'Stop-loss from portfolio',
+        });
+    };
+
+    const handleCreateAlert = async (data: any) => {
+        try {
+            await fetch('/api/v1/alerts/alert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...data, user_id: USER_ID }),
+            });
+            setAlertInitialData(null);
+            // Optionally, we could show a success toast here
+        } catch (err) {
+            console.error('Failed to create alert', err);
+        }
+    };
+
     // Calculate real-time portfolio stats
     let totalInvested = 0;
     let portfolioValue = 0;
@@ -129,6 +156,7 @@ export default function PortfolioPage() {
                         prices={prices}
                         onEdit={(id) => console.log('Edit', id)}
                         onDelete={handleDelete}
+                        onAlert={handleAlertClick}
                     />
                 </div>
             </div>
@@ -140,6 +168,13 @@ export default function PortfolioPage() {
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
                 onAdd={handleAdd}
+            />
+
+            <CreateAlertModal 
+                isOpen={!!alertInitialData} 
+                onClose={() => setAlertInitialData(null)} 
+                onCreate={handleCreateAlert} 
+                initialValues={alertInitialData || undefined}
             />
         </div>
     );

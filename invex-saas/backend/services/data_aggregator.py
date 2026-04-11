@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional
+import os
+import requests
 
 from .cache_manager import cache
 from .data_validator import DataValidator
@@ -63,8 +65,23 @@ class DataAggregator:
             logger.debug(f"Cache HIT for {symbol} price.")
             return cached
 
-        logger.debug(f"Cache MISS for {symbol}. Fetching real price via yfinance...")
-        data = await asyncio.to_thread(self._yf_get_price, symbol)
+        logger.debug(f"Cache MISS for {symbol}. Attempting to fetch real price...")
+        
+        data = None
+        # Primary: Try yfinance first with simple retry
+        for attempt in range(2):
+            try:
+                data = await asyncio.to_thread(self._yf_get_price, symbol)
+                if data:
+                    break
+            except Exception as e:
+                logger.warning(f"yfinance attempt {attempt+1} failed: {e}")
+            await asyncio.sleep(min((attempt + 1) * 0.5, 2))  # Exponential backoff
+
+        # Secondary fallback: Alpha Vantage or Polygon if implemented later
+        if not data:
+            logger.warning(f"yfinance completely failed for {symbol}. Falling back to Alpha Vantage...")
+            data = await asyncio.to_thread(self._av_get_price, symbol)
 
         if data:
             is_valid = DataValidator.validate_price(
@@ -73,12 +90,13 @@ class DataAggregator:
                 previous_close=data.get("previous_close", 1),
             )
             if is_valid:
-                await cache.set(cache_key, data, expire_seconds=60)
+                await cache.set(cache_key, data, expire_seconds=300) # 5 min cache as per Master Plan
                 return data
             else:
                 logger.error(f"Data validation failed for {symbol} — price={data.get('current_price')}")
                 return None
 
+        logger.error(f"All data sources failed to fetch price for {symbol}")
         return None
 
     async def get_history(self, symbol: str, range_str: str = "1mo") -> Optional[List[Dict[str, Any]]]:
@@ -181,5 +199,41 @@ class DataAggregator:
             logger.error(f"yfinance history fetch failed for {symbol}: {e}")
             return None
 
+    def _av_get_price(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Alpha Vantage Fallback API."""
+        api_key = os.environ.get("ALPHA_VANTAGE_API_KEY")
+        if not api_key:
+            logger.error("ALPHA_VANTAGE_API_KEY not found in environment for fallback.")
+            return None
+            
+        # Strip internal suffix overrides to guess AV's suffix
+        av_symbol = symbol.replace('.BO', '.BSE').replace('.NS', '.BSE') # AV uses .BSE for India
+        if ".NS" in symbol:
+            logger.warning(f"Alpha Vantage has limited NSE free coverage, converting {symbol} to BSE mapping if applicable")
+
+        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={av_symbol}&apikey={api_key}"
+        try:
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                quote = data.get("Global Quote", {})
+                if not quote:
+                    logger.error(f"Alpha Vantage returned empty quote for {av_symbol}")
+                    return None
+                    
+                current = round(float(quote.get("05. price", 0)), 2)
+                prev_close = round(float(quote.get("08. previous close", 0)), 2)
+                
+                logger.info(f"Alpha Vantage fetch OK: {av_symbol} -> {current}")
+                return {
+                    "symbol": symbol,
+                    "yf_symbol": symbol, # Keep internal consistency
+                    "current_price": current,
+                    "previous_close": prev_close,
+                    "source": "alpha_vantage",
+                }
+        except Exception as e:
+            logger.error(f"Alpha Vantage HTTP error: {e}")
+        return None
 
 aggregator = DataAggregator()

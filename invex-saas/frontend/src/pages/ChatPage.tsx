@@ -4,7 +4,6 @@ import { useAppStore } from '@/stores/useAppStore';
 import { ChatMessage } from '@/components/chat/ChatMessage';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { Loader2 } from 'lucide-react';
-import { InvestmentForm } from '@/components/chat/InvestmentForm';
 
 export const ChatPage = () => {
     //   const { sessionId } = useParams();
@@ -25,12 +24,6 @@ export const ChatPage = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [currentSession?.messages, isLoading]);
 
-    const handleFormSubmit = async (inputs: any) => {
-        // Construct a summary message for the user to see
-        const summary = `Allocating ₹${inputs.capital_amount} for ${inputs.duration_years} years with ${inputs.risk_percentage}% risk tolerance.`;
-        await sendMessage(summary, inputs);
-    };
-
     return (
         <div className="flex flex-col h-full relative">
             {/* Messages Area */}
@@ -42,8 +35,11 @@ export const ChatPage = () => {
                             <span className="ml-2 text-gray-500">Initializing session...</span>
                         </div>
                     ) : currentSession.messages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center space-y-4 py-10">
-                            <InvestmentForm onSubmit={handleFormSubmit} isLoading={isLoading} />
+                        <div className="flex flex-col items-center justify-center space-y-4 py-10 text-center">
+                            <h2 className="text-xl font-semibold text-gray-800">Welcome to Invex AI Chat</h2>
+                            <p className="text-gray-500 text-sm max-w-md">
+                                Ask me anything about your portfolio, specific stocks, general market performance, or investment strategies.
+                            </p>
                         </div>
                     ) : (
                         currentSession.messages.map((msg, idx) => (
@@ -77,7 +73,7 @@ export const ChatPage = () => {
             </div>
 
             {/* Input Area */}
-            <ChatInput onSend={sendMessage} disabled={isLoading} />
+            <ChatInput onSend={(msg) => sendMessage(msg, { execution_mode: 'chat' })} disabled={isLoading} />
         </div>
     );
 };

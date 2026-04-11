@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { NotificationBell } from '@/components/alerts/NotificationBell';
 
 interface IndexData {
     name: string;
@@ -45,23 +46,31 @@ export const IndexBar = () => {
 
     // Add padding top to account for the sticky app header that might exist, though we can just pad normally
     return (
-        <div className="bg-[#0D0D0D] border-b border-white/5 px-8 py-2.5 flex gap-8 overflow-x-auto whitespace-nowrap scrollbar-hide">
-            {indices.map((idx) => (
-                <div key={idx.symbol} className="flex items-center gap-3">
-                    <span className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{idx.name}</span>
-                    <span className="text-sm font-bold text-white transition-all">
-                        {idx.name === 'USD/INR' || idx.name === 'GOLD' ? '' : '₹'}
-                        {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </span>
-                    <div className={cn(
-                        "flex items-center text-xs font-medium px-1.5 py-0.5 rounded-md",
-                        idx.up ? "text-[#C8F135] bg-[#C8F135]/10" : "text-red-400 bg-red-400/10"
-                    )}>
-                        {idx.up ? <ArrowUpRight size={12} className="mr-0.5" /> : <ArrowDownRight size={12} className="mr-0.5" />}
-                        {Math.abs(idx.change_pct).toFixed(2)}%
+        <div className="bg-[#0D0D0D] border-b border-white/5 px-6 py-2 flex items-center gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
+            {/* Indices — scrollable */}
+            <div className="flex items-center gap-8 flex-1 overflow-x-auto scrollbar-hide">
+                {indices.map((idx) => (
+                    <div key={idx.symbol} className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{idx.name}</span>
+                        <span className="text-sm font-bold text-white transition-all">
+                            {idx.name === 'USD/INR' || idx.name === 'GOLD' ? '' : '₹'}
+                            {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </span>
+                        <div className={cn(
+                            "flex items-center text-xs font-medium px-1.5 py-0.5 rounded-md",
+                            idx.up ? "text-[#C8F135] bg-[#C8F135]/10" : "text-red-400 bg-red-400/10"
+                        )}>
+                            {idx.up ? <ArrowUpRight size={12} className="mr-0.5" /> : <ArrowDownRight size={12} className="mr-0.5" />}
+                            {Math.abs(idx.change_pct).toFixed(2)}%
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))}
+            </div>
+
+            {/* Notification Bell — pinned right */}
+            <div className="shrink-0 ml-auto pl-4 border-l border-white/[0.06]">
+                <NotificationBell />
+            </div>
         </div>
     );
 };
