@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
             .replace('{analysis_context}', context.analysisReport || 'No recent analysis loaded.')
             .replace('{memory_context}', memoryContext || 'No saved memory yet.');
 
-        // Build the full prompt for the backend
+        // Build the full prompt for the LangGraph chat agent
         const fullPrompt = `${systemPrompt}\n\n---\nUser: ${message}`;
 
         // Call the backend agent endpoint
@@ -112,42 +112,23 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // Run the agent with the mode-specific prompt
-        const agentRes = await fetch(`${backendUrl}/api/v1/agents/run`, {
+        // ── Call the dedicated LangGraph ChatEngine (NOT agents/run / CrewAI) ──
+        const chatRes = await fetch(`${backendUrl}/api/v1/chat/message`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                session_id: sessionId,
                 message: fullPrompt,
-                inputs: context.inputs || {},
+                session_id: sessionId,
+                context: context.inputs || {},
             }),
         });
 
-        if (!agentRes.ok) throw new Error(`Backend error: ${agentRes.status}`);
-        const agentData = await agentRes.json();
+        if (!chatRes.ok) throw new Error(`Backend error: ${chatRes.status}`);
+        const chatData = await chatRes.json();
 
-        if (agentData.status === 'failed') throw new Error(agentData.error || 'Agent failed');
+        if (chatData.status === 'failed') throw new Error(chatData.reply || 'Chat engine failed');
 
-        let replyText: string = "";
-        
-        // Handle new JSON structured output from the backend
-        if (typeof agentData.result === 'object' && agentData.result !== null) {
-            // It's the new PortfolioReport schema. We format it for chat.
-            const r = agentData.result;
-            replyText = `**Portfolio Analysis Complete**\nTarget: ₹${r.total_capital?.toLocaleString('en-IN')}\n\n`;
-            
-            if (r.macro_context) replyText += `🌍 **Macro View:** ${r.macro_context}\n\n`;
-            
-            if (r.recommendations?.length) {
-                replyText += `**Top Recommendations:**\n`;
-                r.recommendations.slice(0, 3).forEach((rec: any) => {
-                    replyText += `- **${rec.symbol}** (${rec.action}): ${rec.reasons?.[0]?.text || ''}\n`;
-                });
-            }
-        } else {
-            // Fallback for strings
-            replyText = agentData.result || agentData.output || "I couldn't process that. Try again.";
-        }
+        const replyText: string = chatData.reply || "I couldn't process that. Try again.";
 
         // Check if what-if mode — parse chart data
         const { isWhatIf, parsed: whatIfData } = parseWhatIfResponse(replyText);

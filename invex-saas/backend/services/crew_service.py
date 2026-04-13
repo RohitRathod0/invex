@@ -88,7 +88,7 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
         'mutual_funds': asset_preferences.get('mutual_funds', True),
         'gold': asset_preferences.get('gold', True),
         'crypto': asset_preferences.get('crypto', True),
-        'execution_mode': inputs.get('execution_mode') if inputs else None,
+        'execution_mode': (inputs.get('execution_mode') if inputs else None) or 'auto',
     }
 
     try:

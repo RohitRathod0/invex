@@ -172,20 +172,41 @@ async def get_social_sentiment(request: Request, symbol: str):
 from typing import Optional
 
 @router.get("/screener")
-async def get_screener(
-    request: Request,
-    sector: Optional[str] = Query(None, description="Sector to filter by"),
-    min_pe: Optional[float] = Query(None, description="Minimum P/E Ratio"),
-    max_pe: Optional[float] = Query(None, description="Maximum P/E Ratio"),
-    min_market_cap: Optional[float] = Query(None, description="Minimum Market Cap"),
-    max_market_cap: Optional[float] = Query(None, description="Maximum Market Cap")
-):
+async def get_screener(request: Request):
     from services.screener_service import screener_service
-    results = screener_service.screen_assets(
-        sector=sector,
-        min_pe=min_pe,
-        max_pe=max_pe,
-        min_market_cap=min_market_cap,
-        max_market_cap=max_market_cap
-    )
+    # Convert query params to dict handling optional types
+    filters = {}
+    for k, v in request.query_params.items():
+        if v.lower() == 'true': v = True
+        elif v.lower() == 'false': v = False
+        filters[k] = v
+        
+    results = screener_service.screen_assets(filters)
     return {"results": results}
+
+from pydantic import BaseModel
+from typing import List, Dict, Any
+
+class AIInsightsRequest(BaseModel):
+    symbols: List[str]
+
+@router.post("/screener/ai-insights")
+@limiter.limit("10/minute")
+async def get_screener_insights(request: Request, body: AIInsightsRequest):
+    """Generates 'Why this stock matched' using llama-3.3-70b"""
+    from services.screener_agent import ScreenerAgent
+    agent = ScreenerAgent()
+    insights = await agent.generate_insights(body.symbols)
+    return {"insights": insights}
+
+class AIAssistantRequest(BaseModel):
+    query: str
+    
+@router.post("/screener/ai-assistant")
+@limiter.limit("20/minute")
+async def ask_screener_assistant(request: Request, body: AIAssistantRequest):
+    """Processes natural language into screener filters using LangGraph"""
+    from services.screener_agent import ScreenerAgent
+    agent = ScreenerAgent()
+    result = await agent.run_assistant(body.query)
+    return result
