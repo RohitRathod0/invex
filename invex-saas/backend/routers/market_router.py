@@ -173,16 +173,24 @@ from typing import Optional
 
 @router.get("/screener")
 async def get_screener(request: Request):
-    from services.screener_service import screener_service
-    # Convert query params to dict handling optional types
-    filters = {}
-    for k, v in request.query_params.items():
-        if v.lower() == 'true': v = True
-        elif v.lower() == 'false': v = False
-        filters[k] = v
-        
-    results = screener_service.screen_assets(filters)
-    return {"results": results}
+    print("----- ENTERED GET_SCREENER ROUTE -----")
+    try:
+        from services.screener_service import screener_service
+        # Convert query params to dict handling optional types
+        filters = {}
+        for k, v in request.query_params.items():
+            if v.lower() == 'true': v = True
+            elif v.lower() == 'false': v = False
+            filters[k] = v
+            
+        results = screener_service.screen_assets(filters)
+        return {"results": results}
+    except Exception as e:
+        import traceback
+        err = traceback.format_exc()
+        print(err)
+        return {"error": str(e), "traceback": err}
+
 
 from pydantic import BaseModel
 from typing import List, Dict, Any

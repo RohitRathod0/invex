@@ -36,6 +36,20 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from fastapi import Request
+import traceback
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    err = traceback.format_exc()
+    print("GLOBAL EXCEPTION:", err)
+    with open("crash_log.txt", "w") as f:
+        f.write(err)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc), "trace": err}
+    )
+
+
 # ── Middleware: order matters — logging wraps everything first ───────────────
 app.add_middleware(RequestLoggingMiddleware)
 
@@ -67,7 +81,7 @@ app.include_router(chat_router.router,       prefix="/api/v1")
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "version": "1.0.0", "env": settings.ENV}
+    return {"status": "healthy-v2", "version": "1.0.0", "env": settings.ENV}
 
 # ── Lambda Handler ────────────────────────────────────────────────────────────
 handler = Mangum(app, lifespan="off")
