@@ -90,17 +90,31 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
   }, []);
 
   const typeQuestion = useCallback(async (text: string) => {
+    // 1) Trigger TTS if available
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      // Try to find a premium or English-native voice
+      const voice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Siri'))) || voices.find(v => v.lang.startsWith('en'));
+      if (voice) utterance.voice = voice;
+      window.speechSynthesis.speak(utterance);
+    }
+
     setStreamingText('');
     setAiTyping(true);
     const stopAmp = startAIMockAmp();
+    
+    // 2) Sync visual typing (~45ms matches average speech phrasing)
     let idx = 0;
     await new Promise<void>(resolve => {
       const iv = setInterval(() => {
         idx++;
         setStreamingText(text.slice(0, idx));
         if (idx >= text.length) { clearInterval(iv); resolve(); }
-      }, 20);
+      }, 45); 
     });
+    
     stopAmp();
     cancelAnimationFrame(ampRafRef.current);
     setAiTyping(false);
@@ -226,6 +240,9 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
   }, [textAnswer, submitAnswer]);
 
   useEffect(() => () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     if (silenceCheckRef.current) clearInterval(silenceCheckRef.current);
     if (timerRef.current)        clearInterval(timerRef.current);
     cancelAnimationFrame(ampRafRef.current);
