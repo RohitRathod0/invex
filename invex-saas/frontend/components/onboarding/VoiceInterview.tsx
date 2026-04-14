@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * components/onboarding/VoiceInterview.tsx  (v3 — Light Glass UI)
+ * components/onboarding/VoiceInterview.tsx  (v4 — Immersive Neon UI)
  *
- * Interview logic unchanged. Visual system fully switched to light theme
- * matching the crystal glass reference: dark purple text on white/lavender glass.
+ * Immersive, full-bleed Voice UI mirroring the Dribbble neon aesthetic.
+ * Black minimalist layout, centered elegant typography, enormous layered 
+ * waveform visualizer, and floating bottom controls.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Send, Type, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Mic, MicOff, Send, Type, AlertTriangle } from 'lucide-react';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { DimensionOrbs }      from './DimensionOrbs';
 import { ProfileReveal }      from './ProfileReveal';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type Phase = 'intro' | 'mic_check' | 'interview' | 'complete';
 
 interface AnswerResponse {
@@ -37,27 +37,6 @@ const SILENCE_THRESHOLD   = 0.01;
 const SILENCE_DURATION_MS = 2500;
 const BACKEND             = '/api/v1';
 
-// Shared styles for light theme
-const pill: React.CSSProperties = {
-  background: 'rgba(120,85,210,0.08)',
-  border:     '1px solid rgba(120,85,210,0.18)',
-  borderRadius: '999px',
-  padding:    '3px 12px',
-  fontSize:   '11px',
-  fontWeight: 600,
-  color:      '#6B4FC0',
-  letterSpacing: '0.05em',
-};
-
-const glassInner: React.CSSProperties = {
-  background:  'rgba(255,255,255,0.45)',
-  border:      '1px solid rgba(255,255,255,0.80)',
-  borderRadius: '18px',
-  padding:     '16px 18px',
-  backdropFilter: 'blur(12px)',
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 export function VoiceInterview({ userId, isRetake = false, priorProfile = null }: Props) {
   // Session
   const [sessionId,       setSessionId]       = useState('');
@@ -98,7 +77,7 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
   const timerRef          = useRef<ReturnType<typeof setInterval> | null>(null);
   const ampRafRef         = useRef<number>(0);
 
-  // ── Mock AI audio level ──────────────────────────────────────────────────
+  // Mock AI audio level
   const startAIMockAmp = useCallback(() => {
     let t = 0;
     const tick = () => {
@@ -110,7 +89,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     return () => cancelAnimationFrame(ampRafRef.current);
   }, []);
 
-  // ── Typewriter ───────────────────────────────────────────────────────────
   const typeQuestion = useCallback(async (text: string) => {
     setStreamingText('');
     setAiTyping(true);
@@ -131,7 +109,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     setStreamingText('');
   }, [startAIMockAmp]);
 
-  // ── Session ──────────────────────────────────────────────────────────────
   const startSession = useCallback(async () => {
     try {
       const res  = await fetch(`${BACKEND}/risk/session/start`, {
@@ -150,7 +127,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     }
   }, [userId, typeQuestion]);
 
-  // ── Mic ──────────────────────────────────────────────────────────────────
   const startAudioLevelPoll = useCallback((analyser: AnalyserNode) => {
     const buf = new Float32Array(analyser.fftSize);
     const poll = () => {
@@ -172,7 +148,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     }
   }, [startSession]);
 
-  // ── Silence detection ────────────────────────────────────────────────────
   const startSilenceDetection = useCallback((ms: MediaStream) => {
     if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
     const ctx      = audioCtxRef.current;
@@ -192,7 +167,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     }, 100);
   }, [startAudioLevelPoll]); // eslint-disable-line
 
-  // ── Recording ────────────────────────────────────────────────────────────
   const startRecording = useCallback(() => {
     if (!stream || isRecording || isSending) return;
     chunksRef.current = [];
@@ -219,7 +193,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     mr.stop(); setIsRecording(false);
   }, []); // eslint-disable-line
 
-  // ── Submit ───────────────────────────────────────────────────────────────
   const submitAnswer = useCallback(async (audioBlob: Blob | null, textOverride: string | null) => {
     if (!sessionId || isSending) return;
     setIsSending(true); setError(null);
@@ -260,7 +233,6 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     stream?.getTracks().forEach(t => t.stop());
   }, [stream]);
 
-  // ── Render: complete ─────────────────────────────────────────────────────
   if (phase === 'complete' && userContext) {
     return (
       <ProfileReveal
@@ -270,323 +242,211 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     );
   }
 
-  const completedDims = Object.values(dimScores).filter(s => s >= 80).length;
-  const totalDims     = Object.keys(dimScores).length || 6;
-  const progressPct   = Math.round((completedDims / totalDims) * 100);
-
-  // ── Phase: INTRO ─────────────────────────────────────────────────────────
-  if (phase === 'intro') return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-
-      {isRetake && priorProfile && (
-        <div style={{ ...glassInner, marginBottom: '16px', background: 'rgba(120,85,210,0.06)', borderColor: 'rgba(120,85,210,0.15)' }}>
-          <p style={{ margin: 0, fontSize: '13px', color: '#6B4FC0' }}>
-            👋 Welcome back! Last score: <strong>{(priorProfile.risk_score as number)?.toFixed(0)}/100</strong>
-            {' '}({String(priorProfile.risk_label).replace(/_/g, ' ')})
-          </p>
-        </div>
-      )}
-
-      <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#2D1F5E', lineHeight: 1.25, margin: '0 0 8px' }}>
-        {isRetake ? 'Quick Profile Update' : "Let's build your risk profile"}
-      </h1>
-      <p style={{ color: 'rgba(60,40,120,0.50)', fontSize: '14px', lineHeight: 1.65, margin: '0 0 20px' }}>
-        {isRetake
-          ? 'A few targeted questions to refresh your profile — 2–3 minutes.'
-          : '8–12 voice questions. Your AI advisor will listen and build a personalized risk profile.'}
-      </p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', marginBottom: '22px' }}>
-        {[
-          ['🎙️', 'Speak naturally — no right or wrong answers'],
-          ['🧠', 'Questions adapt based on what you say'],
-          ['🔒', 'Voice stays private, processed on-device'],
-        ].map(([icon, text]) => (
-          <div key={text as string} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <span style={{ fontSize: '15px' }}>{icon}</span>
-            <span style={{ fontSize: '13px', color: 'rgba(60,40,120,0.55)' }}>{text}</span>
-          </div>
-        ))}
-      </div>
-
-      <PrimaryBtn onClick={() => setPhase('mic_check')}><Mic size={15} /> Start Voice Interview</PrimaryBtn>
-      <GhostBtn onClick={() => { setTextMode(true); setPhase('mic_check'); requestMic(); }}>
-        Prefer typing instead →
-      </GhostBtn>
-    </motion.div>
-  );
-
-  // ── Phase: MIC CHECK ─────────────────────────────────────────────────────
-  if (phase === 'mic_check') return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center' }}>
-      {/* Mic pulse icon */}
-      <div style={{ position: 'relative', width: '72px', height: '72px', margin: '8px auto 20px' }}>
-        <motion.div
-          animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0.0, 0.3] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(120,85,210,0.15)' }}
-        />
-        <div style={{
-          position: 'absolute', inset: '10px', borderRadius: '50%',
-          background: 'linear-gradient(135deg, #9B7FE0, #6B4FC0)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 16px rgba(120,85,210,0.30)',
-        }}>
-          <Mic size={22} color="white" />
-        </div>
-      </div>
-
-      <h2 style={{ fontSize: '21px', fontWeight: 700, color: '#2D1F5E', marginBottom: '8px' }}>
-        Allow Microphone Access
-      </h2>
-      <p style={{ color: 'rgba(60,40,120,0.50)', fontSize: '13px', lineHeight: 1.65, marginBottom: '24px' }}>
-        Your browser will ask for permission. Click "Allow" to continue.
-      </p>
-
-      {error && <ErrCard msg={error} />}
-
-      <PrimaryBtn onClick={requestMic}><Mic size={15} /> Allow & Start</PrimaryBtn>
-      <GhostBtn onClick={() => { setTextMode(true); setPhase('interview'); startSession(); }}>Use text mode</GhostBtn>
-    </motion.div>
-  );
-
-  // ── Phase: INTERVIEW ─────────────────────────────────────────────────────
+  // ── Layout Wrapper ──
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-
-      {/* Progress header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <span style={{ fontSize: '11px', color: 'rgba(60,40,120,0.45)', textTransform: 'uppercase', letterSpacing: '0.09em' }}>
-          Q{questionCount + 1} · {completedDims}/{totalDims} dimensions
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {dimension && <span style={pill}>{dimension.replace(/_/g, ' ')}</span>}
-          {conflictFlagged && <span style={{ ...pill, background: 'rgba(245,158,11,0.10)', borderColor: 'rgba(245,158,11,0.25)', color: '#B45309' }}>⚠ Clarifying</span>}
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ height: '3px', background: 'rgba(120,85,210,0.10)', borderRadius: '999px', marginBottom: '16px', overflow: 'hidden' }}>
-        <motion.div
-          animate={{ width: `${progressPct}%` }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{ height: '100%', background: 'linear-gradient(90deg, #9B7FE0, #6B4FC0)', borderRadius: '999px' }}
-        />
-      </div>
-
-      {/* Dimension orbs */}
-      <DimensionOrbs scores={dimScores} />
-
-      {/* Question card */}
-      <motion.div layout style={{ ...glassInner, minHeight: '80px', display: 'flex', alignItems: 'center', marginBottom: '14px' }}>
-        <AnimatePresence mode="wait">
-          {isSending ? (
-            <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ThinkingDots />
-              <span style={{ fontSize: '13px', color: 'rgba(60,40,120,0.45)' }}>Processing…</span>
-            </motion.div>
-          ) : aiTyping ? (
-            <motion.p key="stream" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              style={{ fontSize: '15px', color: '#2D1F5E', fontWeight: 500, lineHeight: 1.6, margin: 0 }}>
-              {streamingText}
-              <motion.span
-                animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.8, repeat: Infinity }}
-                style={{ display: 'inline-block', width: '2px', height: '1em', background: '#8B6FD4', borderRadius: '1px', marginLeft: '3px', verticalAlign: 'middle' }}
-              />
-            </motion.p>
-          ) : (
-            <motion.p key="q" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-              style={{ fontSize: '15px', color: '#2D1F5E', fontWeight: 500, lineHeight: 1.6, margin: 0 }}>
-              {question || 'Loading…'}
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Waveform */}
-      <div style={{ marginBottom: '12px' }}>
-        <WaveformVisualizer stream={stream} isRecording={isRecording} aiSpeaking={aiTyping} audioLevel={aiTyping ? aiAudioLevel : audioLevel} />
-      </div>
-
-      {/* Controls */}
-      {!textMode ? (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '22px', marginBottom: '10px' }}>
-            {isRecording && (
-              <>
-                <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}
-                  style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#EF4444', marginRight: '7px' }} />
-                <span style={{ fontSize: '12px', color: 'rgba(60,40,120,0.50)' }}>{recordSeconds}s · silence auto-submits</span>
-              </>
-            )}
-            {!isRecording && !isSending && !aiTyping && question && (
-              <span style={{ fontSize: '12px', color: 'rgba(60,40,120,0.35)' }}>Press record to answer</span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            {!isRecording ? (
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                onClick={startRecording}
-                disabled={isSending || aiTyping || !question}
-                style={{
-                  flex: 1,
-                  background: (isSending || aiTyping || !question) ? 'rgba(120,85,210,0.18)' : 'linear-gradient(135deg, #9B7FE0, #6B4FC0)',
-                  color: (isSending || aiTyping || !question) ? 'rgba(60,40,120,0.45)' : '#fff',
-                  fontWeight: 700, fontSize: '14px', border: 'none',
-                  borderRadius: '14px', padding: '13px',
-                  cursor: (isSending || aiTyping || !question) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                  boxShadow: '0 4px 18px rgba(120,85,210,0.25)',
-                }}>
-                <Mic size={15} /> Record Answer
-              </motion.button>
-            ) : (
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                onClick={stopAndSubmit}
-                style={{
-                  flex: 1, background: 'linear-gradient(135deg, #EF4444, #DC2626)', color: '#fff',
-                  fontWeight: 700, fontSize: '14px', border: 'none',
-                  borderRadius: '14px', padding: '13px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                  boxShadow: '0 4px 16px rgba(239,68,68,0.25)',
-                }}>
-                <MicOff size={15} /> Stop & Submit
-              </motion.button>
-            )}
-
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              onClick={() => setTextMode(true)}
-              style={{
-                background: 'rgba(120,85,210,0.08)', border: '1px solid rgba(120,85,210,0.18)',
-                borderRadius: '14px', padding: '13px 15px', cursor: 'pointer', color: 'rgba(60,40,120,0.50)',
-              }}>
-              <Type size={15} />
-            </motion.button>
-          </div>
-        </div>
-      ) : (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-          <textarea
-            value={textAnswer}
-            onChange={e => setTextAnswer(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) submitText(); }}
-            placeholder="Type your answer… (Ctrl+Enter to submit)"
-            rows={4}
-            style={{
-              width: '100%', background: 'rgba(255,255,255,0.55)',
-              border: '1px solid rgba(120,85,210,0.20)',
-              borderRadius: '14px', padding: '13px 15px',
-              color: '#2D1F5E', fontSize: '14px', resize: 'none', outline: 'none',
-              boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: 1.6,
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '5vh 5vw' }}>
+      
+      {/* ── Intro & Mic Check ── */}
+      <AnimatePresence mode="wait">
+        {(phase === 'intro' || phase === 'mic_check') && (
+          <motion.div 
+            key={phase}
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            style={{ 
+              flex: 1, display: 'flex', flexDirection: 'column', 
+              alignItems: 'center', justifyContent: 'center', textAlign: 'center'
             }}
-            onFocus={e  => { e.target.style.borderColor = 'rgba(120,85,210,0.45)'; }}
-            onBlur={e   => { e.target.style.borderColor = 'rgba(120,85,210,0.20)'; }}
-          />
-          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-            <button onClick={() => setTextMode(false)} style={{
-              background: 'rgba(120,85,210,0.08)', border: '1px solid rgba(120,85,210,0.18)',
-              borderRadius: '12px', padding: '11px 16px', cursor: 'pointer',
-              color: 'rgba(60,40,120,0.55)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px',
-            }}>
-              <Mic size={14} /> Voice
-            </button>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-              onClick={submitText}
-              disabled={!textAnswer.trim() || isSending}
-              style={{
-                flex: 1,
-                background: textAnswer.trim() ? 'linear-gradient(135deg, #9B7FE0, #6B4FC0)' : 'rgba(120,85,210,0.18)',
-                color: textAnswer.trim() ? '#fff' : 'rgba(60,40,120,0.45)',
-                fontWeight: 700, fontSize: '14px', border: 'none',
-                borderRadius: '12px', padding: '11px',
-                cursor: textAnswer.trim() ? 'pointer' : 'not-allowed',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                boxShadow: textAnswer.trim() ? '0 4px 16px rgba(120,85,210,0.25)' : 'none',
-              }}>
-              <Send size={14} /> Submit
-            </motion.button>
-          </div>
-        </motion.div>
-      )}
+          >
+            {/* Ambient Waveform Preview */}
+            <div style={{ width: '100%', maxWidth: '800px', marginBottom: '40px', opacity: 0.5 }}>
+              <WaveformVisualizer stream={null} isRecording={false} />
+            </div>
 
-      {error && <ErrCard msg={error} style={{ marginTop: '14px' }} />}
+            <h1 style={{ fontSize: '36px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: '16px' }}>
+              {phase === 'intro' ? (isRetake ? 'Quick Profile Update' : 'Initialize Voice Assistant.') : 'Microphone Check.'}
+            </h1>
+            
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '18px', maxWidth: '480px', lineHeight: 1.6, marginBottom: '48px' }}>
+              {phase === 'intro' ? 
+                'Speak naturally. I will adapt to your responses and build a personalized risk profile in real-time.' : 
+                'Please click "Allow" when the browser prompts for microphone access.'}
+            </p>
 
-      <div style={{ textAlign: 'center', marginTop: '14px' }}>
-        <button
-          onClick={async () => {
-            if (sessionId) {
-              const res = await fetch(`${BACKEND}/risk/session/${sessionId}/finish`, { method: 'POST' });
-              const d   = await res.json();
-              if (d.user_context) { setUserContext(d.user_context); setPhase('complete'); }
-            }
-          }}
-          style={{ background: 'none', border: 'none', color: 'rgba(60,40,120,0.28)', fontSize: '11px', cursor: 'pointer' }}>
-          Skip for now →
-        </button>
-      </div>
-    </motion.div>
-  );
-}
+            {error && <ErrCard msg={error} style={{ marginBottom: '24px' }} />}
 
-// ── Shared sub-components ─────────────────────────────────────────────────────
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <button 
+                onClick={phase === 'intro' ? () => setPhase('mic_check') : requestMic}
+                style={{
+                  background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#fff', borderRadius: '30px', padding: '16px 36px', fontSize: '16px', fontWeight: 600,
+                  cursor: 'pointer', backdropFilter: 'blur(10px)', transition: 'all 0.2s', display: 'flex', gap: '10px'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              >
+                <Mic size={18} /> {phase === 'intro' ? 'Start voice interview' : 'Allow access'}
+              </button>
+              
+              <button
+                onClick={() => { setTextMode(true); setPhase('interview'); phase === 'mic_check' ? startSession() : requestMic(); }}
+                style={{
+                  background: 'transparent', border: '1px solid transparent',
+                  color: 'rgba(255,255,255,0.4)', borderRadius: '30px', padding: '16px 24px', fontSize: '15px',
+                  cursor: 'pointer', transition: 'color 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
+                onMouseOut={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+              >
+                Use text mode
+              </button>
+            </div>
+          </motion.div>
+        )}
 
-function PrimaryBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <motion.button
-      whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(120,85,210,0.35)' }}
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      style={{
-        width: '100%',
-        background: 'linear-gradient(135deg, #9B7FE0 0%, #6B4FC0 100%)',
-        color: '#fff', fontWeight: 700, fontSize: '15px',
-        border: 'none', borderRadius: '16px', padding: '15px',
-        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-        boxShadow: '0 4px 20px rgba(120,85,210,0.30)',
-        letterSpacing: '-0.01em',
-      }}>
-      {children}
-    </motion.button>
-  );
-}
+        {/* ── Immersive Interview Layout ── */}
+        {phase === 'interview' && (
+          <motion.div
+            key="interview"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Top HUD */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.6 }}>
+               <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 600 }}>
+                  <span style={{ color: '#00F2FE' }}>Invex</span> / Risk Profiler
+               </div>
+               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  {dimension && <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{dimension.replace('_', ' ')}</span>}
+                  {conflictFlagged && <span style={{ color: '#FF0844', fontSize: '12px', fontWeight: 600, border: '1px solid rgba(255,8,68,0.3)', padding: '4px 10px', borderRadius: '4px' }}>Clarifying</span>}
+                  <DimensionOrbs scores={dimScores} />
+               </div>
+            </div>
 
-function GhostBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button onClick={onClick} style={{
-      width: '100%', background: 'none', border: 'none',
-      color: 'rgba(60,40,120,0.40)', fontSize: '13px',
-      marginTop: '11px', cursor: 'pointer',
-    }}>
-      {children}
-    </button>
+            {/* Center Area: Text + Enormous Waveform */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              
+              <div style={{ maxWidth: '800px', textAlign: 'center', marginBottom: '60px', minHeight: '80px' }}>
+                <AnimatePresence mode="wait">
+                  {isSending ? (
+                    <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', justifyItems: 'center', gap: '8px' }}>
+                       <span style={{ fontSize: '24px', color: 'rgba(255,255,255,0.4)', fontWeight: 300 }}>Processing input...</span>
+                    </motion.div>
+                  ) : aiTyping ? (
+                    <motion.p key="stream" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      style={{ fontSize: '32px', color: '#fff', fontWeight: 400, lineHeight: 1.4, margin: 0 }}>
+                      {streamingText}
+                      <motion.span animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.8, repeat: Infinity }} style={{ display: 'inline-block', width: '3px', height: '0.8em', background: '#00F2FE', marginLeft: '6px' }} />
+                    </motion.p>
+                  ) : (
+                    <motion.p key="q" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                      style={{ fontSize: '32px', color: '#fff', fontWeight: 400, lineHeight: 1.4, margin: 0 }}>
+                      {question || 'Initializing...'}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Immersive Waveform spanning wide */}
+              <div style={{ width: '100%', maxWidth: '1200px' }}>
+                 <WaveformVisualizer 
+                   stream={stream} 
+                   isRecording={isRecording} 
+                   aiSpeaking={aiTyping} 
+                   audioLevel={aiTyping ? aiAudioLevel : audioLevel} 
+                 />
+              </div>
+
+            </div>
+
+            {/* Bottom Controls */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '2vh' }}>
+              {!textMode ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                  
+                  {isRecording && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1, repeat: Infinity }} style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#FF0844' }} />
+                      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>00:0{recordSeconds}s</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <button 
+                      onClick={() => setTextMode(true)}
+                      style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.2s' }}
+                      onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    >
+                      <Type size={18} />
+                    </button>
+
+                    <button 
+                      onClick={isRecording ? stopAndSubmit : startRecording}
+                      disabled={!isRecording && (isSending || aiTyping || !question)}
+                      style={{ 
+                        width: '80px', height: '80px', borderRadius: '50%', 
+                        background: isRecording ? '#FF0844' : (isSending || aiTyping || !question) ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)', 
+                        border: '1px solid', borderColor: isRecording ? '#FF0844' : 'rgba(255,255,255,0.2)',
+                        color: isRecording ? '#fff' : (isSending || aiTyping || !question) ? 'rgba(255,255,255,0.2)' : '#fff', 
+                        cursor: (isSending || aiTyping || !question) && !isRecording ? 'not-allowed' : 'pointer', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.3s',
+                        boxShadow: isRecording ? '0 0 30px rgba(255,8,68,0.4)' : 'none'
+                      }}
+                      onMouseOver={e => { if (!isRecording && !(isSending || aiTyping || !question)) e.currentTarget.style.background = 'rgba(255,255,255,0.15)' }}
+                      onMouseOut={e => { if (!isRecording && !(isSending || aiTyping || !question)) e.currentTarget.style.background = 'rgba(255,255,255,0.1)' }}
+                    >
+                      {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
+                    </button>
+
+                    <div style={{ width: '60px' }} /> {/* Spacer for symmetry */}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <textarea
+                      value={textAnswer}
+                      onChange={e => setTextAnswer(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) submitText(); }}
+                      placeholder="Type your response... (Ctrl+Enter to send)"
+                      rows={1}
+                      style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '30px', padding: '16px 64px 16px 24px', color: '#fff', fontSize: '15px', resize: 'none', outline: 'none', backdropFilter: 'blur(10px)' }}
+                    />
+                    <button 
+                      onClick={submitText}
+                      disabled={!textAnswer.trim() || isSending}
+                      style={{ position: 'absolute', right: '8px', top: '8px', bottom: '8px', width: '40px', borderRadius: '50%', background: textAnswer.trim() ? '#00F2FE' : 'transparent', color: textAnswer.trim() ? '#000' : 'rgba(255,255,255,0.2)', border: 'none', cursor: textAnswer.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                    >
+                      <Send size={16} />
+                    </button>
+                  </div>
+                  <button onClick={() => setTextMode(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '13px', cursor: 'pointer', alignSelf: 'center' }}>
+                    Return to voice
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {error && <ErrCard msg={error} style={{ position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)' }} />}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
 function ErrCard({ msg, style: s }: { msg: string; style?: React.CSSProperties }) {
   return (
-    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-      style={{
-        background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.20)',
-        borderRadius: '14px', padding: '12px 16px',
-        display: 'flex', gap: '8px', alignItems: 'flex-start', ...s,
-      }}>
-      <AlertTriangle size={14} color="#EF4444" style={{ flexShrink: 0, marginTop: '2px' }} />
-      <p style={{ fontSize: '13px', color: '#DC2626', margin: 0 }}>{msg}</p>
+    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 20px', display: 'flex', gap: '10px', alignItems: 'center', backdropFilter: 'blur(10px)', ...s }}>
+      <AlertTriangle size={16} color="#EF4444" />
+      <span style={{ fontSize: '14px', color: '#FCA5A5' }}>{msg}</span>
     </motion.div>
-  );
-}
-
-function ThinkingDots() {
-  return (
-    <div style={{ display: 'flex', gap: '4px' }}>
-      {[0, 1, 2].map(i => (
-        <motion.div key={i}
-          animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
-          style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#8B6FD4' }}
-        />
-      ))}
-    </div>
   );
 }

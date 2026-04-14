@@ -24,15 +24,15 @@ const DIMENSION_META: { key: string; label: string; icon: string }[] = [
 const THRESHOLD = 80;
 
 function getColor(score: number): string {
-    if (score >= THRESHOLD)   return '#6B4FC0';   // complete — deep purple
-    if (score >= 40)          return '#9B7FE0';   // in progress — lavender
-    return 'rgba(120,85,210,0.20)';              // not started — faint
+    if (score >= THRESHOLD)   return '#00F2FE';   // complete — neon cyan
+    if (score >= 40)          return '#FF0844';   // in progress — neon magenta
+    return 'rgba(255,255,255,0.15)';              // not started — faint
 }
 
 function getTrailColor(score: number): string {
-    if (score >= THRESHOLD)   return 'rgba(107,79,192,0.12)';
-    if (score >= 40)          return 'rgba(155,127,224,0.10)';
-    return 'rgba(120,85,210,0.06)';
+    if (score >= THRESHOLD)   return 'rgba(0,242,254,0.15)';
+    if (score >= 40)          return 'rgba(255,8,68,0.15)';
+    return 'rgba(255,255,255,0.05)';
 }
 
 function CircularProgress({ score }: { score: number }) {
@@ -61,7 +61,7 @@ function CircularProgress({ score }: { score: number }) {
             {/* Center dot */}
             <circle
                 cx="28" cy="28" r="4"
-                fill={score >= THRESHOLD ? '#6B4FC0' : score >= 40 ? '#9B7FE0' : 'rgba(120,85,210,0.25)'}
+                fill={score >= THRESHOLD ? '#00F2FE' : score >= 40 ? '#FF0844' : 'rgba(255,255,255,0.25)'}
                 style={{ transition: 'fill 0.4s ease' }}
             />
         </svg>
@@ -107,7 +107,7 @@ export function DimensionOrbs({ scores }: DimensionOrbsProps) {
                         {/* Label */}
                         <span style={{
                             fontSize: '9px',
-                            color: complete ? '#6B4FC0' : 'rgba(60,40,120,0.40)',
+                            color: complete ? '#00F2FE' : 'rgba(255,255,255,0.40)',
                             fontWeight: complete ? 700 : 400,
                             textAlign: 'center',
                             lineHeight: 1.2,

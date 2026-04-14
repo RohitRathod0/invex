@@ -104,7 +104,7 @@ export function WaveformVisualizer({ stream, isRecording, aiSpeaking = false, au
       } else if (mode === 'ai_speaking') {
         targetAmp = 0.1 + ampRef.current * 0.6;
       } else if (mode === 'idle') {
-        targetAmp = 0.03 + Math.sin(t * 2) * 0.01;
+        targetAmp = 0.25 + Math.sin(t * 1.2) * 0.05;
       }
 
       // Smooth amplitude transitions
@@ -157,7 +157,7 @@ export function WaveformVisualizer({ stream, isRecording, aiSpeaking = false, au
           
           if (!isReflection) {
             ctx.shadowColor = wave.color;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 25;
           } else {
             ctx.shadowBlur = 0;
             ctx.filter = 'blur(4px)'; // extra blur on reflection
@@ -198,7 +198,7 @@ export function WaveformVisualizer({ stream, isRecording, aiSpeaking = false, au
       ref={canvasRef}
       style={{
         width: '100%',
-        height: '240px', // Large immersive height
+        height: '400px', // Massive immersive height
         display: 'block',
       }}
     />
