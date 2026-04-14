@@ -449,5 +449,29 @@ async def run_monte_carlo_stress_test(
         years=params.years, 
         num_simulations=params.simulations
     )
-    
     return results
+
+class AnalyzeNewsRequest(BaseModel):
+    query: Optional[str] = "Analyze the impact of today's news on my portfolio."
+    chat_history: Optional[List[dict]] = None
+
+@router.post("/analyze-news/{user_id}")
+@limiter.limit("10/minute")
+async def analyze_portfolio_news(request: Request, user_id: str, payload: AnalyzeNewsRequest, db: Session = Depends(get_db)):
+    """
+    Invokes the LangGraph portfolio analyst to analyze market news impacts on the user's specific holdings.
+    """
+    from services.portfolio_analyst_agent import portfolio_analyst
+    
+    holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
+    
+    if not holdings:
+        portfolio_context = "User has no active holdings. Provide general market insight."
+    else:
+        context_lines = []
+        for h in holdings:
+            context_lines.append(f"- {h.quantity} shares of {h.symbol} at {h.avg_buy_price} (Exchange: {h.exchange})")
+        portfolio_context = "\n".join(context_lines)
+        
+    result = await portfolio_analyst.run_analyst(payload.query, portfolio_context, chat_history=payload.chat_history)
+    return result

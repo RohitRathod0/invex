@@ -23,26 +23,36 @@ def _is_inr_symbol(raw_symbol: str) -> bool:
 async def get_indices() -> List[Dict[str, Any]]:
     results = []
     for name, symbol in INDICES.items():
-        data = await aggregator.get_price(symbol)
-        if data:
-            current = data.get("current_price", 0)
-            prev_close = data.get("previous_close", current)
-            chg_pct = ((current - prev_close) / prev_close) * 100 if prev_close else 0.0
-            results.append({
-                "name": name,
-                "symbol": symbol,
-                "value": current,
-                "change_pct": round(chg_pct, 2),
-                "up": chg_pct >= 0,
-            })
-        else:
+        try:
+            data = await aggregator.get_price(symbol)
+            if data:
+                current = data.get("current_price") or 0.0
+                prev_close = data.get("previous_close") or current
+                chg_pct = ((current - prev_close) / prev_close) * 100 if prev_close else 0.0
+                results.append({
+                    "name": name,
+                    "symbol": symbol,
+                    "value": current,
+                    "change_pct": round(chg_pct, 2),
+                    "up": chg_pct >= 0,
+                })
+            else:
+                results.append({
+                    "name": name,
+                    "symbol": symbol,
+                    "value": 0,
+                    "change_pct": 0.0,
+                    "up": True,
+                    "error": "Failed to fetch index",
+                })
+        except Exception as e:
             results.append({
                 "name": name,
                 "symbol": symbol,
                 "value": 0,
                 "change_pct": 0.0,
                 "up": True,
-                "error": "Failed to fetch index",
+                "error": str(e),
             })
     return results
 

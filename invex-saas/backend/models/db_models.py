@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, DateTime, Boolean, Text
+from sqlalchemy import Column, String, Float, Integer, DateTime, Boolean, Text
 from sqlalchemy.sql import func
 from .database import Base
 
@@ -36,10 +36,43 @@ class RiskProfile(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     user_id = Column(String, unique=True, index=True)
-    risk_score = Column(Float)        # 0-100
-    risk_label = Column(String(30))   # Conservative / Moderate / Aggressive
-    answers = Column(Text)            # JSON-encoded answers
+
+    # ── Core risk score ──────────────────────────────────────────────────────
+    risk_score = Column(Float)            # 0-100 composite
+    risk_label = Column(String(30))       # conservative / moderate_conservative / moderate / aggressive
+    answers = Column(Text)                # JSON-encoded raw Q&A history
+
+    # ── 6-Dimension values (the user_context fields) ─────────────────────────
+    horizon_years         = Column(Integer, nullable=True)    # investment horizon in years
+    loss_tolerance_pct    = Column(Float, nullable=True)      # % drop they can stomach (e.g. 15)
+    income_stability      = Column(String(30), nullable=True) # salaried_stable / freelance / business
+    dependents            = Column(Integer, nullable=True)    # number of financial dependents
+    liabilities           = Column(Text, nullable=True)       # JSON list e.g. ["home_loan","car_loan"]
+    excluded_sectors      = Column(Text, nullable=True)       # JSON list e.g. ["tobacco","gambling"]
+    preferred_sectors     = Column(Text, nullable=True)       # JSON list e.g. ["pharma","it"]
+    emergency_fund_months = Column(Float, nullable=True)      # months of expenses as emergency fund
+
+    # ── Interview metadata ───────────────────────────────────────────────────
+    dimension_scores      = Column(Text, nullable=True)       # JSON: {dim: confidence 0-100}
+    interview_transcript  = Column(Text, nullable=True)       # path to transcript file
+    profile_version       = Column(Integer, default=1)
+    last_updated          = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=func.now())
+
+
+class RiskProfileHistory(Base):
+    """Immutable snapshot of every completed interview — enables retake diffs."""
+    __tablename__ = "risk_profile_history"
+
+    id             = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id        = Column(String, index=True)
+    profile_version = Column(Integer)
+    risk_score     = Column(Float)
+    risk_label     = Column(String(30))
+    dimension_scores = Column(Text)   # JSON snapshot
+    user_context   = Column(Text)     # Full JSON snapshot of user_context at time
+    created_at     = Column(DateTime, default=func.now())
 
 class User(Base):
     __tablename__ = "users"

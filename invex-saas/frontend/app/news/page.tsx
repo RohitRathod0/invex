@@ -157,6 +157,105 @@ function NewsCard({ item, idx }: { item: ParsedItem; idx: number }) {
     );
 }
 
+// ─── Portfolio Agent Panel ──────────────────────────────────────────────────
+function PortfolioAgentPanel({ userId = "0000-user" }: { userId?: string }) {
+    const [query, setQuery] = useState("");
+    const [loading, setLoading] = useState(false);
+    
+    type Message = { role: 'user' | 'assistant', content: string };
+    const [history, setHistory] = useState<Message[]>([]);
+    const [attemptsNum, setAttemptsNum] = useState<number>(0);
+
+    const analyze = async () => {
+        if (!query.trim()) return;
+        setLoading(true);
+        const userQ = query;
+        setQuery("");
+        setHistory(prev => [...prev, { role: 'user', content: userQ }]);
+        
+        try {
+            const res = await fetch(`/api/v1/portfolio/analyze-news/${userId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    query: userQ,
+                    chat_history: history
+                })
+            });
+            const data = await res.json();
+            setHistory(prev => [...prev, { role: 'assistant', content: data.analysis }]);
+            setAttemptsNum(data.attempts || 1);
+        } catch (e) {
+            console.error(e);
+            setHistory(prev => [...prev, { role: 'assistant', content: "Failed to fetch response." }]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '400px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '32px', height: '32px', background: 'rgba(200,241,53,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <Zap size={16} color="#C8F135" />
+                </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Portfolio Analyst</h3>
+            </div>
+            
+            <p style={{ fontSize: '12px', color: '#6B7280', lineHeight: 1.5 }}>
+                Personalized portfolio impact and conversational AI assistant.
+            </p>
+            
+            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: '#D1D5DB', lineHeight: 1.6, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {history.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+                        <p style={{ fontSize: '12px', color: '#9CA3AF' }}>Ready to cross-reference market news with your precise portfolio holdings.</p>
+                    </div>
+                ) : (
+                    history.map((msg, i) => (
+                        <div key={i} style={{ 
+                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', 
+                            background: msg.role === 'user' ? 'rgba(200,241,53,0.1)' : 'rgba(255,255,255,0.05)', 
+                            border: msg.role === 'user' ? '1px solid rgba(200,241,53,0.2)' : '1px solid rgba(255,255,255,0.1)',
+                            padding: '10px 14px', borderRadius: '12px', maxWidth: '90%', whiteSpace: 'pre-wrap'
+                        }}>
+                           {(msg.role === 'assistant' && i === history.length - 1 && attemptsNum > 1) && (
+                                <div style={{ marginBottom: '8px', fontSize: '10px', color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <AlertTriangle size={10} />
+                                    Refined by Evaluator Node ({attemptsNum} iterations)
+                                </div>
+                            )}
+                            {msg.content}
+                        </div>
+                    ))
+                )}
+                {loading && (
+                    <div style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px', color: '#9CA3AF', fontSize: '12px' }}>
+                        Thinking...
+                    </div>
+                )}
+            </div>
+            
+            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                <input 
+                    type="text" 
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Ask about news or your portfolio..."
+                    style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                    onKeyDown={(e) => e.key === 'Enter' && !loading && analyze()}
+                />
+                <button 
+                    onClick={analyze}
+                    disabled={loading || !query.trim()}
+                    style={{ background: '#C8F135', color: '#000', border: 'none', borderRadius: '10px', padding: '0 16px', fontWeight: 600, cursor: (loading || !query.trim()) ? 'not-allowed' : 'pointer', opacity: (loading || !query.trim()) ? 0.7 : 1 }}>
+                    Send
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function NewsPage() {
     const [status, setStatus] = useState<'idle' | 'triggering' | 'polling' | 'done' | 'error'>('idle');
@@ -370,9 +469,8 @@ export default function NewsPage() {
                                 )}
                             </div>
 
-                            {/* RIGHT: Overall signal panel */}
+                            {/* RIGHT: Agentic Portfolio Analyst panel AND original guides */}
                             <div style={{ position: 'sticky', top: '80px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
                                 {/* Legend */}
                                 <div style={{ ...card, padding: '20px' }}>
                                     <p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '14px' }}>Signal Guide</p>
@@ -400,6 +498,8 @@ export default function NewsPage() {
                                         <pre style={{ color: '#D1D5DB', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'sans-serif', margin: 0 }}>{overall}</pre>
                                     </div>
                                 )}
+
+                                <PortfolioAgentPanel />
 
                                 {/* Disclaimer */}
                                 <div style={{ fontSize: '11px', color: '#374151', lineHeight: 1.6, padding: '12px 0' }}>

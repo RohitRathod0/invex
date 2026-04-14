@@ -36,7 +36,7 @@ import feedparser
 
 def _get_llm():
     model = os.environ.get("MODEL", "groq/llama-3.1-8b-instant")
-    return LLM(model=model)
+    return LLM(model=model, max_tokens=2500)
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +53,8 @@ class MarketNewsTool(BaseTool):
     def _run(self) -> str:
         news_items = []
 
-        # 1. yfinance news for major indices/commodities
-        tickers_to_check = ["^GSPC", "GC=F", "BTC-USD", "^NSEI"]
+        # 1. yfinance news for broader market (US, Gold, Crypto, Indian Markets, Oil, EV)
+        tickers_to_check = ["^GSPC", "GC=F", "BTC-USD", "^NSEI", "CL=F", "RELIANCE.NS", "TATAMOTORS.NS"]
         for sym in tickers_to_check:
             try:
                 t = yf.Ticker(sym)
@@ -67,25 +67,36 @@ class MarketNewsTool(BaseTool):
             except Exception:
                 pass
 
-        # 2. Google News RSS for geopolitics + finance
+        # 2. Broad RSS Feeds (Geopolitics, EV, Oil, Indian Economy, Tech, Chemicals, etc)
         rss_feeds = [
-            ("https://news.google.com/rss/search?q=geopolitics+market+impact&hl=en&gl=US&ceid=US:en", "Google News"),
-            ("https://feeds.bbci.co.uk/news/business/rss.xml", "BBC Business"),
+            ("https://news.google.com/rss/search?q=geopolitics+market+impact&hl=en&gl=US&ceid=US:en", "Geopolitics"),
+            ("https://news.google.com/rss/search?q=Indian+stock+market+OR+Nifty+OR+Sensex&hl=en-IN&gl=IN&ceid=IN:en", "Indian Markets"),
+            ("https://news.google.com/rss/search?q=oil+prices+OR+OPEC+OR+energy+sector&hl=en-IN&gl=IN&ceid=IN:en", "Oil/Energy"),
+            ("https://news.google.com/rss/search?q=electric+vehicles+India+OR+Tata+Motors+auto+sector&hl=en-IN&gl=IN&ceid=IN:en", "EV/Autos"),
+            ("https://news.google.com/rss/search?q=technology+AI+innovation+advancements&hl=en-US&gl=US&ceid=US:en", "Tech/AI"),
+            ("https://news.google.com/rss/search?q=chemical+sector+OR+petrochemicals+India&hl=en-IN&gl=IN&ceid=IN:en", "Chemicals"),
+            ("https://news.google.com/rss/search?q=education+technology+OR+research+advancements&hl=en-US&gl=US&ceid=US:en", "Education/Research"),
+            ("https://news.google.com/rss/search?q=pharmaceuticals+OR+health+care+industry&hl=en-IN&gl=IN&ceid=IN:en", "Pharma/Health"),
         ]
+        
+        # Round-robin collection to ensure all sectors have representation without blowing up token limit
+        gathered = []
         for url, source in rss_feeds:
             try:
                 feed = feedparser.parse(url)
-                for entry in feed.entries[:5]:
+                for entry in feed.entries[:2]: # Top 2 per sector
                     title = entry.get("title", "")
                     if title:
-                        news_items.append(f"[{source}] {title}")
+                        gathered.append(f"[{source}] {title}")
             except Exception:
                 pass
+                
+        news_items.extend(gathered)
 
         if not news_items:
             return "No live news available. Analyze based on recent known events."
 
-        unique_items = list(dict.fromkeys(news_items))[:20]
+        unique_items = list(dict.fromkeys(news_items))[:25]
         return "\n".join(f"{i+1}. {item}" for i, item in enumerate(unique_items))
 
 
@@ -118,7 +129,7 @@ def run_news_analysis() -> dict:
             tools=[MarketNewsTool()],
             llm=llm,
             verbose=True,
-            max_iter=5,
+            max_iter=2,
         )
 
         # Agent 2: Market Decision Agent
@@ -130,26 +141,28 @@ def run_news_analysis() -> dict:
             ),
             backstory=(
                 "Quantitative strategist from Goldman Sachs India. You understand how global events "
-                "flow to Indian markets: Fed hikes → Nifty drop, Middle East war → gold spike, "
+                "flow to Indian markets: Fed hikes → Nifty drop, Middle East war → oil spike → auto drops, "
                 "banking crisis → crypto volatility, US tech earnings → Indian IT stocks. "
-                "You issue direct, actionable signals — no vague disclaimers."
+                "You issue direct, actionable signals — no vague disclaimers. "
+                "CRITICAL INSTRUCTION: You MUST output ONLY the final required format. DO NOT output 'Thought:' "
+                "or any initial reasoning. Start directly with '## Market News Analysis'."
             ),
             llm=llm,
             verbose=True,
-            max_iter=5,
+            max_iter=2,
         )
 
         # Task 1: Fetch news
         fetch_task = Task(
             description=(
-                "Use the Market News Fetcher tool to get today's news. "
-                "Summarize the top 5-8 most market-relevant items. "
+                "Use the Market News Fetcher tool to get today's news representing diverse sectors. "
+                "You MUST summarize 12-15 market-relevant items spanning Tech, Oil, EV, Indian Markets, and Geopolitics. "
                 "For each: (a) headline, (b) 2-sentence summary, (c) which markets it could affect. "
                 f"Today's date: {datetime.now().strftime('%Y-%m-%d')}"
             ),
             expected_output=(
-                "Numbered list of 5-8 news summaries, each with: "
-                "Headline | Summary | Markets affected (Stocks/Gold/Crypto/Bonds)"
+                "Numbered list of 12-15 news summaries across various sectors, each with: "
+                "Headline | Summary | Markets affected (Stocks/Gold/Crypto/Bonds/Sectors)"
             ),
             agent=news_fetcher,
         )
@@ -173,7 +186,13 @@ def run_news_analysis() -> dict:
                 "## Market News Analysis\n"
                 "**Date:** [date] | **Risk Level:** [LOW/MEDIUM/HIGH]\n\n"
                 "### Key Events & Market Impact\n"
-                "[For each event: Event | Stocks impact | Gold impact | Crypto impact]\n\n"
+                "1. [Headline]\n"
+                "[2-sentence summary]\n"
+                "- Stocks: [Positive/Negative/Neutral] | Oil: [Positive/Negative/Neutral] | Gold: [Positive/Negative/Neutral] | Crypto: [Positive/Negative/Neutral]\n"
+                "\n"
+                "2. [Headline]\n"
+                "[2-sentence summary]\n"
+                "(repeat for all events)\n\n"
                 "### Overall Signal: [BULLISH/BEARISH/NEUTRAL]\n\n"
                 "### Actionable Recommendations\n"
                 "1. [BUY/SELL/HOLD] [Asset] — [1-line reason]\n"

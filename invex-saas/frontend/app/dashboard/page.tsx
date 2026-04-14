@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, MessageSquare, Activity, FileText, TrendingUp, RefreshCw, CheckCircle, AlertCircle, MinusCircle, ArrowRight } from 'lucide-react';
 import { OnboardingBanner } from '@/components/ui/OnboardingBanner';
+import { RiskProfileCard } from '@/components/dashboard/RiskProfileCard';
 
 // ─── Types ─────────────────────────────────
 type Ticker = { label: string; value: string; change: string; up: boolean };
@@ -133,39 +134,11 @@ export default function DashboardPage() {
                     ))}
                 </div>
 
-                {/* PORTFOLIO + AI CTA */}
+                {/* RISK PROFILE + AI CTA */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
 
-                    {/* Portfolio Donut */}
-                    <div style={{ ...card, padding: '28px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-                            <h3 style={{ fontWeight: 600, fontSize: '16px', color: '#fff' }}>Portfolio Allocation</h3>
-                            <span style={{ fontSize: '11px', color: '#6B7280', background: 'rgba(255,255,255,0.06)', padding: '3px 10px', borderRadius: '999px' }}>Sample</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-                            <div style={{ width: '160px', height: '160px', flexShrink: 0 }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie data={PORTFOLIO_DATA} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" strokeWidth={0}>
-                                            {PORTFOLIO_DATA.map((d, i) => <Cell key={i} fill={d.color} />)}
-                                        </Pie>
-                                        <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', fontSize: '12px' }} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {PORTFOLIO_DATA.map((d, i) => (
-                                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: d.color, flexShrink: 0 }} />
-                                            <span style={{ color: '#9CA3AF' }}>{d.name}</span>
-                                        </div>
-                                        <span style={{ color: '#fff', fontWeight: 600 }}>{d.value}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                    {/* Risk Profile Card — reads from UserContext, zero fetch */}
+                    <RiskProfileCard />
 
                     {/* AI Agent CTA */}
                     <div style={{

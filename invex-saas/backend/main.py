@@ -7,7 +7,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from config import get_settings
-from routers import agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router
+from routers import agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router, risk_router
 from models.database import engine, Base
 from middleware.request_logger import RequestLoggingMiddleware
 
@@ -55,13 +55,17 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+if "http://localhost:3000" not in origins:
+    origins.append("http://localhost:3000")
+if "http://127.0.0.1:3000" not in origins:
+    origins.append("http://127.0.0.1:3000")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ── Routers ──────────────────────────────────────────────────────────────────
@@ -77,6 +81,7 @@ app.include_router(earnings_router.router,   prefix="/api/v1")
 app.include_router(research_router.router,   prefix="/api/v1")
 app.include_router(security_router.router,   prefix="/api/v1")
 app.include_router(chat_router.router,       prefix="/api/v1")
+app.include_router(risk_router.router,       prefix="/api/v1")
 
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health")
