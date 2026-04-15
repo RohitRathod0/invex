@@ -18,7 +18,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -80,6 +80,9 @@ class NeedsRefreshResponse(BaseModel):
     days_since_update: Optional[int] = None
     profile_version:  Optional[int] = None
 
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -293,3 +296,16 @@ async def _transcribe(audio_bytes: bytes) -> str:
     except Exception as exc:
         logger.error(f"Transcription failed: {exc}")
         return ""
+
+@router.post("/tts")
+async def generate_tts(request: TTSRequest):
+    """
+    Generate Text-to-Speech audio using ElevenLabs.
+    """
+    from services.elevenlabs_service import synthesize_speech
+    try:
+        voice_id = request.voice_id or "laIfd2zdo5aIukjt406E"
+        audio_bytes = await synthesize_speech(request.text, voice_id)
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

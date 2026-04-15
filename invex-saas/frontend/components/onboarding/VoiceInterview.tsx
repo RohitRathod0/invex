@@ -76,6 +76,7 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
   const silenceCheckRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef          = useRef<ReturnType<typeof setInterval> | null>(null);
   const ampRafRef         = useRef<number>(0);
+  const aiAudioRef        = useRef<HTMLAudioElement | null>(null);
 
   // Mock AI audio level
   const startAIMockAmp = useCallback(() => {
@@ -89,16 +90,56 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     return () => cancelAnimationFrame(ampRafRef.current);
   }, []);
 
+  /** Speak `text` — ElevenLabs first, browser SpeechSynthesis as fallback */
+  const speakWithFallback = useCallback((text: string): (() => void) => {
+    // Cancel any previous utterance
+    window.speechSynthesis?.cancel();
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate  = 0.92;
+    utter.pitch = 1.05;
+    utter.volume = 1;
+
+    // Prefer a high-quality English female voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      /female|zira|samantha|karen|moira|tessa|fiona|victoria/i.test(v.name) &&
+      v.lang.startsWith('en')
+    ) || voices.find(v => v.lang.startsWith('en-GB')) || voices.find(v => v.lang.startsWith('en'));
+    if (preferred) utter.voice = preferred;
+
+    window.speechSynthesis.speak(utter);
+    return () => window.speechSynthesis?.cancel();
+  }, []);
+
   const typeQuestion = useCallback(async (text: string) => {
-    // 1) Trigger TTS if available
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      // Try to find a premium or English-native voice
-      const voice = voices.find(v => v.lang === 'en-US' && (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Siri'))) || voices.find(v => v.lang.startsWith('en'));
-      if (voice) utterance.voice = voice;
-      window.speechSynthesis.speak(utterance);
+    // 1) Trigger backend TTS — fall back to browser SpeechSynthesis on any failure
+    if (aiAudioRef.current) {
+      aiAudioRef.current.pause();
+      aiAudioRef.current = null;
+    }
+
+    let ttsSucceeded = false;
+    try {
+      const res = await fetch(`${BACKEND}/risk/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice_id: 'laIfd2zdo5aIukjt406E' })
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        aiAudioRef.current = audio;
+        audio.play().catch(() => { /* ignore autoplay block */ });
+        ttsSucceeded = true;
+      }
+    } catch {
+      // network error — fall through to browser TTS
+    }
+
+    if (!ttsSucceeded && typeof window !== 'undefined' && window.speechSynthesis) {
+      speakWithFallback(text);
     }
 
     setStreamingText('');
@@ -121,7 +162,7 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     setAiAudioLevel(0);
     setQuestion(text);
     setStreamingText('');
-  }, [startAIMockAmp]);
+  }, [startAIMockAmp, speakWithFallback]);
 
   const startSession = useCallback(async () => {
     try {
@@ -240,9 +281,10 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
   }, [textAnswer, submitAnswer]);
 
   useEffect(() => () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+    if (aiAudioRef.current) {
+      aiAudioRef.current.pause();
     }
+    window.speechSynthesis?.cancel();
     if (silenceCheckRef.current) clearInterval(silenceCheckRef.current);
     if (timerRef.current)        clearInterval(timerRef.current);
     cancelAnimationFrame(ampRafRef.current);

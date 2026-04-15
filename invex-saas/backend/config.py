@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # CrewAI / LLM
     OPENAI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
+    ELEVENLABS_API_KEY: str | None = None
 
     # Security
     SECURITY_SECRET: str = "change-me-in-production-please"  # Used for Fernet key derivation
