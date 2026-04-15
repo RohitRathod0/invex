@@ -3,7 +3,6 @@ import React from 'react';
 import { Briefcase, Crosshair, Target, Search, Diamond, TrendingUp, BarChart3, Bell, MessageSquare, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAlerts } from '@/components/alerts/AlertsContext';
 
 const NAV_MAIN = [
     { icon: BarChart3, label: 'Dashboard', href: '/dashboard' },
@@ -13,8 +12,6 @@ const NAV_MAIN = [
 
 const NAV_TOOLS = [
     { icon: Search, label: 'Screener', href: '/screener' },
-    { icon: Target, label: 'Goals', href: '/goals' },
-    { icon: Bell, label: 'Alerts', href: '/dashboard/alerts' },
 ];
 
 const NAV_OTHER = [
@@ -26,7 +23,6 @@ const NAV_OTHER = [
 
 export function Sidebar() {
     const pathname = usePathname();
-    const { unreadCount } = useAlerts();
 
     return (
         <aside style={{
@@ -79,7 +75,6 @@ export function Sidebar() {
                 <div style={{ fontSize: '11px', fontWeight: 600, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '20px 14px 4px' }}>Tools</div>
                 {NAV_TOOLS.map(item => {
                     const active = pathname === item.href || pathname?.startsWith(item.href);
-                    const isAlertsItem = item.href === '/dashboard/alerts';
                     return (
                         <Link key={item.href} href={item.href} style={{ textDecoration: 'none', display: 'block' }}>
                             <div style={{
@@ -97,17 +92,6 @@ export function Sidebar() {
                                     <item.icon size={17} />
                                     {item.label}
                                 </div>
-                                {isAlertsItem && unreadCount > 0 && (
-                                    <span style={{
-                                        minWidth: '18px', height: '18px',
-                                        background: '#C8F135', color: '#000',
-                                        borderRadius: '999px', fontSize: '10px', fontWeight: 800,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        padding: '0 5px',
-                                    }}>
-                                        {unreadCount > 9 ? '9+' : unreadCount}
-                                    </span>
-                                )}
                             </div>
                         </Link>
                     );
