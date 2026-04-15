@@ -176,5 +176,6 @@ class Invex():
             tasks=tasks_to_execute,  # Dynamic task list
             process=Process.sequential,
             memory=True,
-            verbose=True
+            verbose=True,
+            max_rpm=15  # Manage rate limits by capping requests per minute
         )

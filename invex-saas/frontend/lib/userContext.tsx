@@ -16,6 +16,8 @@ import React, {
     useEffect,
     useState,
 } from 'react';
+import { getStoredUser } from './auth';
+import { apiGet } from './apiClient';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,15 +63,19 @@ export function UserContextProvider({ children }: { children: React.ReactNode })
     const fetchProfile = useCallback(async () => {
         setLoading(true);
         try {
-            const userId = typeof window !== 'undefined'
-                ? (localStorage.getItem('invex_user_id') || '0000-user')
-                : '0000-user';
+            const user = getStoredUser();
+            const userId = user?.id || '0000-user'; // fallback for dev or unauthenticated
 
-            const res = await fetch(`/api/v1/risk/profile/${userId}`);
-            const data = await res.json();
-
-            if (data.exists && data.user_context) {
-                setProfile(data.user_context as UserContext);
+            // Use the authenticated wrapper instead of raw fetch
+            const res = await apiGet(`http://localhost:8000/api/v1/risk/profile/${userId}`);
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data.exists && data.user_context) {
+                    setProfile(data.user_context as UserContext);
+                } else {
+                    setProfile(null);
+                }
             } else {
                 setProfile(null);
             }

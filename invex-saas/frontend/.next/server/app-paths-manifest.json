@@ -1,9 +1,6 @@
 {
-  "/onboarding/page": "app/onboarding/page.js",
-  "/security/page": "app/security/page.js",
-  "/dashboard/portfolio/page": "app/dashboard/portfolio/page.js",
-  "/chat/page": "app/chat/page.js",
-  "/analysis/page": "app/analysis/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/news/page": "app/news/page.js",
-  "/screener/page": "app/screener/page.js"
+  "/dashboard/portfolio/page": "app/dashboard/portfolio/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
 }

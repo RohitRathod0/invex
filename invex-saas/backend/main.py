@@ -7,7 +7,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from config import get_settings
-from routers import agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router, risk_router
+from routers import auth_router, agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router, risk_router
 from models.database import engine, Base
 from middleware.request_logger import RequestLoggingMiddleware
 
@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 # ── Routers ──────────────────────────────────────────────────────────────────
+app.include_router(auth_router.router,       prefix="/api/v1")
 app.include_router(agent_router.router,      prefix="/api/v1")
 app.include_router(session_router.router,    prefix="/api/v1")
 app.include_router(document_router.router,   prefix="/api/v1")

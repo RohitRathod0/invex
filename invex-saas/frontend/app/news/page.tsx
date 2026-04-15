@@ -1,15 +1,15 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     RefreshCw, Globe2, TrendingUp, TrendingDown, MinusCircle,
-    Zap, Clock, AlertTriangle, CheckCircle2, Newspaper
+    Zap, Clock, AlertTriangle, CheckCircle2, Newspaper, AtSign, Send, X
 } from 'lucide-react';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface NewsCache {
-    date: string;      // e.g. "2026-03-02"
-    result: string;    // raw markdown from agents
-    timestamp: string; // ISO
+    date: string;
+    result: string;
+    timestamp: string;
     status: 'success' | 'failed';
 }
 
@@ -21,98 +21,73 @@ interface ParsedItem {
     impact: 'positive' | 'negative' | 'neutral';
 }
 
-// ─── Cache helpers ───────────────────────────────────────────────────────────
+// ─── Cache helpers ────────────────────────────────────────────────────────────
 const CACHE_KEY = 'invex_news_cache';
 
-function todayStr() {
-    return new Date().toLocaleDateString('en-CA'); // "YYYY-MM-DD" in IST
-}
+function todayStr() { return new Date().toLocaleDateString('en-CA'); }
 
 function loadCache(): NewsCache | null {
     try {
         const raw = localStorage.getItem(CACHE_KEY);
         if (!raw) return null;
         const cache: NewsCache = JSON.parse(raw);
-        // Only valid if it was fetched on the same calendar day
         if (cache.date === todayStr()) return cache;
-        return null; // day changed → stale
+        return null;
     } catch { return null; }
 }
 
 function saveCache(result: string, status: 'success' | 'failed') {
-    const cache: NewsCache = {
-        date: todayStr(),
-        result,
-        timestamp: new Date().toISOString(),
-        status,
-    };
+    const cache: NewsCache = { date: todayStr(), result, timestamp: new Date().toISOString(), status };
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
 }
 
-// ─── Parse raw markdown into structured cards ────────────────────────────────
+// ─── Parse raw markdown ───────────────────────────────────────────────────────
 function parseNews(raw: string): ParsedItem[] {
     const items: ParsedItem[] = [];
-    // Split on numbered list items: "1. " "2. " etc.
     const blocks = raw.split(/\n(?=\d+\.\s)/).filter(Boolean);
-
     for (const block of blocks) {
         const lines = block.split('\n').filter(l => l.trim());
         if (!lines.length) continue;
-
         const headline = lines[0].replace(/^\d+\.\s*/, '').replace(/\*\*/g, '').trim();
         const summary = lines.slice(1, 3).join(' ').replace(/\*\*/g, '').trim();
-
         const marketLine = lines.find(l => /market|stock|gold|crypto|bond|nifty|sensex/i.test(l)) || '';
-
-        // Detect signal from text
         const text = block.toUpperCase();
         let signal: ParsedItem['signal'] = null;
         if (text.includes('BUY')) signal = 'BUY';
         else if (text.includes('SELL')) signal = 'SELL';
         else if (text.includes('HOLD')) signal = 'HOLD';
-
-        // Detect sentiment
         const neg = /decline|drop|fall|negative|bearish|war|conflict|risk|sanction/i.test(block);
         const pos = /rise|surge|rally|positive|bullish|grow|opportunity|strong/i.test(block);
         const impact: ParsedItem['impact'] = pos && !neg ? 'positive' : neg ? 'negative' : 'neutral';
-
         if (headline && headline.length > 4) {
             items.push({ headline, summary: summary || '—', markets: marketLine, signal, impact });
         }
     }
-    return items.length ? items : [];
+    return items;
 }
 
-// Also extract the overall section (## sections after numbered list)
-function extractOverall(raw: string) {
-    const lines = raw.split('\n');
-    const overallStart = lines.findIndex(l => /overall.*signal|portfolio.*signal|recommendation/i.test(l));
-    if (overallStart === -1) return null;
-    return lines.slice(overallStart, overallStart + 20).join('\n');
-}
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const SIGNAL_CFG = {
-    BUY: { color: '#C8F135', bg: 'rgba(200,241,53,0.12)', border: 'rgba(200,241,53,0.25)', Icon: TrendingUp, label: 'BUY' },
-    SELL: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.25)', Icon: TrendingDown, label: 'SELL' },
-    HOLD: { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.25)', Icon: MinusCircle, label: 'HOLD' },
+    BUY:  { color: '#C8F135', bg: 'rgba(200,241,53,0.12)',  border: 'rgba(200,241,53,0.25)',  Icon: TrendingUp,   label: 'BUY'  },
+    SELL: { color: '#EF4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.25)',   Icon: TrendingDown, label: 'SELL' },
+    HOLD: { color: '#F59E0B', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.25)',  Icon: MinusCircle,  label: 'HOLD' },
 } as const;
 
-const IMPACT_COLORS = {
-    positive: '#C8F135',
-    negative: '#EF4444',
-    neutral: '#9CA3AF',
-};
+const IMPACT_COLORS = { positive: '#C8F135', negative: '#EF4444', neutral: '#9CA3AF' };
 
-function NewsCard({ item, idx }: { item: ParsedItem; idx: number }) {
+// ─── NewsCard ─────────────────────────────────────────────────────────────────
+function NewsCard({ item, idx, onCite }: { item: ParsedItem; idx: number; onCite: (item: ParsedItem) => void }) {
     const sig = item.signal ? SIGNAL_CFG[item.signal] : null;
+    const [hovered, setHovered] = useState(false);
+
     return (
         <div style={{
             background: 'rgba(255,255,255,0.04)', border: `1px solid rgba(255,255,255,0.08)`,
             borderRadius: '20px', padding: '24px', position: 'relative', overflow: 'hidden',
             borderLeft: `3px solid ${IMPACT_COLORS[item.impact]}`,
+            transition: 'border-color 0.2s',
         }}>
-            {/* Number */}
+            {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flex: 1 }}>
                     <span style={{ fontSize: '12px', color: '#4B5563', fontWeight: 700, minWidth: '22px', paddingTop: '2px' }}>
@@ -122,28 +97,46 @@ function NewsCard({ item, idx }: { item: ParsedItem; idx: number }) {
                         {item.headline}
                     </h3>
                 </div>
-                {sig && (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0,
-                        background: sig.bg, border: `1px solid ${sig.border}`,
-                        borderRadius: '8px', padding: '6px 12px',
-                    }}>
-                        <sig.Icon size={13} color={sig.color} />
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: sig.color, letterSpacing: '0.05em' }}>
-                            {sig.label}
-                        </span>
-                    </div>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    {/* @ button */}
+                    <button
+                        id={`cite-news-${idx}`}
+                        onClick={() => onCite(item)}
+                        onMouseEnter={() => setHovered(true)}
+                        onMouseLeave={() => setHovered(false)}
+                        title="Ask Portfolio Analyst about this news"
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: '30px', height: '30px', borderRadius: '8px',
+                            background: hovered ? 'rgba(200,241,53,0.15)' : 'rgba(255,255,255,0.06)',
+                            border: hovered ? '1px solid rgba(200,241,53,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                            cursor: 'pointer', transition: 'all 0.15s',
+                            color: hovered ? '#C8F135' : '#6B7280',
+                        }}
+                    >
+                        <AtSign size={13} />
+                    </button>
+                    {sig && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            background: sig.bg, border: `1px solid ${sig.border}`,
+                            borderRadius: '8px', padding: '6px 12px',
+                        }}>
+                            <sig.Icon size={13} color={sig.color} />
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: sig.color, letterSpacing: '0.05em' }}>
+                                {sig.label}
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Summary / reasoning */}
             {item.summary && item.summary !== '—' && (
                 <p style={{ fontSize: '13px', color: '#9CA3AF', lineHeight: 1.65, marginBottom: '12px', paddingLeft: '34px' }}>
                     {item.summary}
                 </p>
             )}
 
-            {/* Impact + markets */}
             {item.markets && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '34px' }}>
                     <span style={{ fontSize: '11px', color: IMPACT_COLORS[item.impact], fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -157,72 +150,137 @@ function NewsCard({ item, idx }: { item: ParsedItem; idx: number }) {
     );
 }
 
-// ─── Portfolio Agent Panel ──────────────────────────────────────────────────
-function PortfolioAgentPanel({ userId = "0000-user" }: { userId?: string }) {
-    const [query, setQuery] = useState("");
+// ─── Portfolio Agent Panel ────────────────────────────────────────────────────
+type Message = { role: 'user' | 'assistant'; content: string; isContext?: boolean };
+
+function PortfolioAgentPanel({
+    userId = '0000-user',
+    injectedContext,
+    onContextConsumed,
+}: {
+    userId?: string;
+    injectedContext: ParsedItem | null;
+    onContextConsumed: () => void;
+}) {
+    const [query, setQuery] = useState('');
     const [loading, setLoading] = useState(false);
-    
-    type Message = { role: 'user' | 'assistant', content: string };
     const [history, setHistory] = useState<Message[]>([]);
     const [attemptsNum, setAttemptsNum] = useState<number>(0);
+    const [contextChip, setContextChip] = useState<ParsedItem | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const chatRef = useRef<HTMLDivElement>(null);
+
+    // When a news item is @ cited, set the context chip and focus input
+    useEffect(() => {
+        if (injectedContext) {
+            setContextChip(injectedContext);
+            onContextConsumed();
+            inputRef.current?.focus();
+        }
+    }, [injectedContext, onContextConsumed]);
+
+    // Auto-scroll to bottom on new messages
+    useEffect(() => {
+        if (chatRef.current) {
+            chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        }
+    }, [history, loading]);
 
     const analyze = async () => {
-        if (!query.trim()) return;
+        if (!query.trim() && !contextChip) return;
         setLoading(true);
-        const userQ = query;
-        setQuery("");
-        setHistory(prev => [...prev, { role: 'user', content: userQ }]);
-        
+
+        let userText = query.trim();
+        if (contextChip) {
+            userText = `[News Context: "${contextChip.headline}"]\n\n${userText || 'How does this news affect my portfolio?'}`;
+        }
+
+        setQuery('');
+        setContextChip(null);
+        setHistory(prev => [...prev, { role: 'user', content: userText }]);
+
         try {
             const res = await fetch(`/api/v1/portfolio/analyze-news/${userId}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    query: userQ,
-                    chat_history: history
-                })
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: userText, chat_history: history }),
             });
             const data = await res.json();
             setHistory(prev => [...prev, { role: 'assistant', content: data.analysis }]);
             setAttemptsNum(data.attempts || 1);
-        } catch (e) {
-            console.error(e);
-            setHistory(prev => [...prev, { role: 'assistant', content: "Failed to fetch response." }]);
+        } catch {
+            setHistory(prev => [...prev, { role: 'assistant', content: 'Failed to fetch response.' }]);
         } finally {
             setLoading(false);
         }
     };
 
+    const clearHistory = () => {
+        setHistory([]);
+        setContextChip(null);
+        setQuery('');
+    };
+
+    const canSend = (query.trim() || contextChip) && !loading;
+
     return (
-        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '400px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '32px', height: '32px', background: 'rgba(200,241,53,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                    <Zap size={16} color="#C8F135" />
+        <div style={{
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column',
+            gap: '14px', height: '520px',
+        }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '32px', height: '32px', background: 'rgba(200,241,53,0.1)', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <Zap size={16} color="#C8F135" />
+                    </div>
+                    <div>
+                        <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0 }}>Portfolio Analyst</h3>
+                        <p style={{ fontSize: '11px', color: '#6B7280', margin: 0 }}>Press @ on any news to add context</p>
+                    </div>
                 </div>
-                <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Portfolio Analyst</h3>
+                {history.length > 0 && (
+                    <button
+                        onClick={clearHistory}
+                        style={{ background: 'none', border: 'none', color: '#4B5563', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                        <X size={12} /> Clear
+                    </button>
+                )}
             </div>
-            
-            <p style={{ fontSize: '12px', color: '#6B7280', lineHeight: 1.5 }}>
-                Personalized portfolio impact and conversational AI assistant.
-            </p>
-            
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: '#D1D5DB', lineHeight: 1.6, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+            {/* Chat window */}
+            <div
+                ref={chatRef}
+                style={{
+                    flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px',
+                    background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '14px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                }}
+            >
                 {history.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-                        <p style={{ fontSize: '12px', color: '#9CA3AF' }}>Ready to cross-reference market news with your precise portfolio holdings.</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '10px', textAlign: 'center' }}>
+                        <div style={{ width: '40px', height: '40px', background: 'rgba(200,241,53,0.08)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <AtSign size={18} color="rgba(200,241,53,0.4)" />
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#4B5563', lineHeight: 1.5, maxWidth: '200px' }}>
+                            Click the <strong style={{ color: '#6B7280' }}>@</strong> button on any news card to add it as context, then ask your question.
+                        </p>
                     </div>
                 ) : (
                     history.map((msg, i) => (
-                        <div key={i} style={{ 
-                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', 
-                            background: msg.role === 'user' ? 'rgba(200,241,53,0.1)' : 'rgba(255,255,255,0.05)', 
-                            border: msg.role === 'user' ? '1px solid rgba(200,241,53,0.2)' : '1px solid rgba(255,255,255,0.1)',
-                            padding: '10px 14px', borderRadius: '12px', maxWidth: '90%', whiteSpace: 'pre-wrap'
+                        <div key={i} style={{
+                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                            background: msg.role === 'user' ? 'rgba(200,241,53,0.1)' : 'rgba(255,255,255,0.05)',
+                            border: msg.role === 'user' ? '1px solid rgba(200,241,53,0.2)' : '1px solid rgba(255,255,255,0.08)',
+                            padding: '10px 13px', borderRadius: '12px', maxWidth: '92%',
+                            fontSize: '12px', lineHeight: 1.6, color: '#D1D5DB', whiteSpace: 'pre-wrap',
                         }}>
-                           {(msg.role === 'assistant' && i === history.length - 1 && attemptsNum > 1) && (
-                                <div style={{ marginBottom: '8px', fontSize: '10px', color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {msg.role === 'assistant' && i === history.length - 1 && attemptsNum > 1 && (
+                                <div style={{ marginBottom: '6px', fontSize: '10px', color: '#F59E0B', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     <AlertTriangle size={10} />
-                                    Refined by Evaluator Node ({attemptsNum} iterations)
+                                    Refined ({attemptsNum} iterations)
                                 </div>
                             )}
                             {msg.content}
@@ -230,33 +288,71 @@ function PortfolioAgentPanel({ userId = "0000-user" }: { userId?: string }) {
                     ))
                 )}
                 {loading && (
-                    <div style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px', color: '#9CA3AF', fontSize: '12px' }}>
+                    <div style={{ alignSelf: 'flex-start', background: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px', color: '#9CA3AF', fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                            {[0, 1, 2].map(i => (
+                                <div key={i} style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#C8F135', animation: `bounce 1s ease-in-out ${i * 0.15}s infinite` }} />
+                            ))}
+                        </div>
                         Thinking...
                     </div>
                 )}
             </div>
-            
-            <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-                <input 
-                    type="text" 
+
+            {/* Context chip */}
+            {contextChip && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(200,241,53,0.08)',
+                    border: '1px solid rgba(200,241,53,0.2)', borderRadius: '10px', padding: '8px 12px',
+                }}>
+                    <AtSign size={12} color="#C8F135" />
+                    <span style={{ fontSize: '11px', color: '#C8F135', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {contextChip.headline}
+                    </span>
+                    <button
+                        onClick={() => setContextChip(null)}
+                        style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', padding: 0, display: 'flex' }}
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+            )}
+
+            {/* Input row */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    id="portfolio-analyst-input"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Ask about news or your portfolio..."
-                    style={{ flex: 1, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '10px 14px', color: '#fff', fontSize: '13px', outline: 'none' }}
-                    onKeyDown={(e) => e.key === 'Enter' && !loading && analyze()}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder={contextChip ? 'Ask about this news & your portfolio...' : 'Ask anything about your portfolio...'}
+                    style={{
+                        flex: 1, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '10px', padding: '10px 13px', color: '#fff', fontSize: '13px', outline: 'none',
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && canSend && analyze()}
                 />
-                <button 
+                <button
+                    id="portfolio-analyst-send"
                     onClick={analyze}
-                    disabled={loading || !query.trim()}
-                    style={{ background: '#C8F135', color: '#000', border: 'none', borderRadius: '10px', padding: '0 16px', fontWeight: 600, cursor: (loading || !query.trim()) ? 'not-allowed' : 'pointer', opacity: (loading || !query.trim()) ? 0.7 : 1 }}>
-                    Send
+                    disabled={!canSend}
+                    style={{
+                        background: canSend ? '#C8F135' : 'rgba(200,241,53,0.1)',
+                        color: canSend ? '#000' : '#6B7280',
+                        border: canSend ? 'none' : '1px solid rgba(200,241,53,0.15)',
+                        borderRadius: '10px', padding: '0 14px', cursor: canSend ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                    }}
+                >
+                    <Send size={15} />
                 </button>
             </div>
         </div>
     );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function NewsPage() {
     const [status, setStatus] = useState<'idle' | 'triggering' | 'polling' | 'done' | 'error'>('idle');
     const [rawResult, setRawResult] = useState<string | null>(null);
@@ -264,8 +360,8 @@ export default function NewsPage() {
     const [cachedAt, setCachedAt] = useState<string | null>(null);
     const [fromCache, setFromCache] = useState(false);
     const [pollCount, setPollCount] = useState(0);
+    const [injectedContext, setInjectedContext] = useState<ParsedItem | null>(null);
 
-    // Load from cache on mount
     useEffect(() => {
         const cache = loadCache();
         if (cache && cache.status === 'success') {
@@ -276,7 +372,6 @@ export default function NewsPage() {
         }
     }, []);
 
-    // Poll /news/result every 5 seconds while polling
     useEffect(() => {
         if (status !== 'polling') return;
         const interval = setInterval(async () => {
@@ -297,8 +392,7 @@ export default function NewsPage() {
                     setErrorMsg(d.result.error || 'Analysis failed');
                     setStatus('error');
                 }
-                // still running → keep polling
-            } catch (e) {
+            } catch {
                 clearInterval(interval);
                 setErrorMsg('Failed to connect to backend');
                 setStatus('error');
@@ -312,11 +406,7 @@ export default function NewsPage() {
         setErrorMsg(null);
         setPollCount(0);
         try {
-            const r = await fetch('/api/v1/news/analyze', { method: 'POST' });
-            const d = await r.json();
-            if (d.status === 'running') {
-                // Already running — jump directly to polling
-            }
+            await fetch('/api/v1/news/analyze', { method: 'POST' });
             setStatus('polling');
         } catch {
             setErrorMsg('Cannot reach backend. Is it running on port 8000?');
@@ -332,8 +422,15 @@ export default function NewsPage() {
         triggerAnalysis();
     };
 
+    const handleCite = useCallback((item: ParsedItem) => {
+        setInjectedContext(item);
+    }, []);
+
+    const handleContextConsumed = useCallback(() => {
+        setInjectedContext(null);
+    }, []);
+
     const parsed = rawResult ? parseNews(rawResult) : [];
-    const overall = rawResult ? extractOverall(rawResult) : null;
     const isBusy = status === 'triggering' || status === 'polling';
 
     const card: React.CSSProperties = {
@@ -352,7 +449,7 @@ export default function NewsPage() {
                     </div>
                     <div>
                         <h1 style={{ fontSize: '20px', fontWeight: 700 }}>Market News Intelligence</h1>
-                        <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '1px' }}>AI-powered market news with BUY/SELL/HOLD signals · cached daily</p>
+                        <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '1px' }}>AI-powered market news with BUY/SELL/HOLD signals · Press @ on any news to ask Portfolio Analyst</p>
                     </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -372,7 +469,8 @@ export default function NewsPage() {
                             border: isBusy ? '1px solid rgba(200,241,53,0.25)' : 'none',
                             fontWeight: 700, fontSize: '13px', borderRadius: '12px', padding: '10px 18px',
                             cursor: isBusy ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
-                        }}>
+                        }}
+                    >
                         <RefreshCw size={14} style={{ animation: isBusy ? 'spin 1s linear infinite' : 'none' }} />
                         {isBusy ? 'Fetching...' : 'Refresh news'}
                     </button>
@@ -381,7 +479,7 @@ export default function NewsPage() {
 
             <div style={{ padding: '32px 40px' }}>
 
-                {/* ── IDLE: nothing loaded yet ── */}
+                {/* IDLE */}
                 {status === 'idle' && !rawResult && (
                     <div style={{ ...card, textAlign: 'center', padding: '80px 40px' }}>
                         <div style={{ width: '64px', height: '64px', background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.15)', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
@@ -397,7 +495,7 @@ export default function NewsPage() {
                     </div>
                 )}
 
-                {/* ── LOADING ── */}
+                {/* LOADING */}
                 {isBusy && (
                     <div style={{ ...card, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(200,241,53,0.1)', border: '1px solid rgba(200,241,53,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -412,7 +510,6 @@ export default function NewsPage() {
                                     ? 'Triggering News Fetcher + Market Decision Agent'
                                     : 'Agents are scraping news and computing BUY/SELL/HOLD signals. Checking every 5s...'}
                             </p>
-                            {/* Progress bar */}
                             <div style={{ width: '100%', height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '999px', marginTop: '12px', overflow: 'hidden' }}>
                                 <div style={{ height: '100%', background: '#C8F135', borderRadius: '999px', width: `${Math.min((pollCount / 20) * 100, 95)}%`, transition: 'width 0.5s ease' }} />
                             </div>
@@ -420,7 +517,7 @@ export default function NewsPage() {
                     </div>
                 )}
 
-                {/* ── ERROR ── */}
+                {/* ERROR */}
                 {status === 'error' && errorMsg && (
                     <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '16px', padding: '20px 24px', marginBottom: '24px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
                         <AlertTriangle size={18} color="#EF4444" style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -434,10 +531,9 @@ export default function NewsPage() {
                     </div>
                 )}
 
-                {/* ── RESULTS ── */}
+                {/* RESULTS */}
                 {rawResult && (
                     <>
-                        {/* Cache notice */}
                         {fromCache && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(200,241,53,0.06)', border: '1px solid rgba(200,241,53,0.15)', borderRadius: '12px', padding: '12px 16px', marginBottom: '24px', fontSize: '13px' }}>
                                 <CheckCircle2 size={14} color="#C8F135" />
@@ -449,7 +545,7 @@ export default function NewsPage() {
                             </div>
                         )}
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 380px', gap: '24px', alignItems: 'start' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 400px', gap: '28px', alignItems: 'start' }}>
 
                             {/* NEWS CARDS */}
                             <div>
@@ -458,10 +554,11 @@ export default function NewsPage() {
                                 </p>
                                 {parsed.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                                        {parsed.map((item, i) => <NewsCard key={i} item={item} idx={i} />)}
+                                        {parsed.map((item, i) => (
+                                            <NewsCard key={i} item={item} idx={i} onCite={handleCite} />
+                                        ))}
                                     </div>
                                 ) : (
-                                    /* Raw markdown fallback if parsing yields nothing */
                                     <div style={{ ...card }}>
                                         <p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '16px' }}>Raw Agent Output</p>
                                         <pre style={{ color: '#D1D5DB', fontSize: '13px', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontFamily: 'sans-serif' }}>{rawResult}</pre>
@@ -469,40 +566,13 @@ export default function NewsPage() {
                                 )}
                             </div>
 
-                            {/* RIGHT: Agentic Portfolio Analyst panel AND original guides */}
+                            {/* RIGHT: Portfolio Analyst only */}
                             <div style={{ position: 'sticky', top: '80px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                {/* Legend */}
-                                <div style={{ ...card, padding: '20px' }}>
-                                    <p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '14px' }}>Signal Guide</p>
-                                    {[
-                                        { sig: 'BUY', desc: 'News is market-positive. Consider increasing exposure.', ...SIGNAL_CFG.BUY },
-                                        { sig: 'SELL', desc: 'High risk signal. Consider reducing position.', ...SIGNAL_CFG.SELL },
-                                        { sig: 'HOLD', desc: 'Neutral impact. No immediate action needed.', ...SIGNAL_CFG.HOLD },
-                                    ].map(({ sig, desc, color, bg, border, Icon }) => (
-                                        <div key={sig} style={{ display: 'flex', gap: '10px', marginBottom: '12px', alignItems: 'flex-start' }}>
-                                            <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                <Icon size={13} color={color} />
-                                            </div>
-                                            <div>
-                                                <p style={{ fontSize: '12px', fontWeight: 700, color }}>{sig}</p>
-                                                <p style={{ fontSize: '11px', color: '#6B7280', lineHeight: 1.4 }}>{desc}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Overall agent output panel */}
-                                {overall && (
-                                    <div style={{ ...card }}>
-                                        <p style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '14px' }}>Overall Market Signal</p>
-                                        <pre style={{ color: '#D1D5DB', fontSize: '12px', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'sans-serif', margin: 0 }}>{overall}</pre>
-                                    </div>
-                                )}
-
-                                <PortfolioAgentPanel />
-
-                                {/* Disclaimer */}
-                                <div style={{ fontSize: '11px', color: '#374151', lineHeight: 1.6, padding: '12px 0' }}>
+                                <PortfolioAgentPanel
+                                    injectedContext={injectedContext}
+                                    onContextConsumed={handleContextConsumed}
+                                />
+                                <div style={{ fontSize: '11px', color: '#374151', lineHeight: 1.6, padding: '4px 0' }}>
                                     ⚠️ AI-generated signals are for informational purposes only. Not financial advice. Always do your own research before trading.
                                 </div>
                             </div>
@@ -511,10 +581,13 @@ export default function NewsPage() {
                 )}
             </div>
 
-            {/* Spin keyframe */}
             <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes bounce {
+                    0%, 100% { transform: translateY(0); opacity: 0.5; }
+                    50% { transform: translateY(-4px); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }

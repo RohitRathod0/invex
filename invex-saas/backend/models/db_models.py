@@ -116,3 +116,18 @@ class DeletionRequest(Base):
     reason = Column(Text)
     status = Column(String, default="PENDING")
     requested_at = Column(DateTime, default=func.now())
+
+class RequestLog(Base):
+    __tablename__ = "request_logs"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, index=True, nullable=True) # None for anonymous requests
+    method = Column(String)
+    path = Column(String)
+    status_code = Column(Integer)
+    duration_ms = Column(Float)
+    request_body = Column(Text, nullable=True) # truncated to 2000 chars
+    response_body = Column(Text, nullable=True) # truncated to 2000 chars
+    ip_address = Column(String)
+    user_agent = Column(String, nullable=True)
+    timestamp = Column(DateTime, default=func.now())

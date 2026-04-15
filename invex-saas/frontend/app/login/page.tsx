@@ -1,8 +1,76 @@
 'use client';
-import React from 'react';
-import { Diamond, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Diamond, ArrowRight, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { apiPost } from '@/lib/apiClient';
+import { setToken } from '@/lib/auth';
+
+// Simple email validator
+const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
 export default function LoginPage() {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
+    const [loading, setLoading] = useState(false);
+
+    const validate = (): boolean => {
+        const newErrors: typeof errors = {};
+
+        if (!email.trim()) {
+            newErrors.email = 'Email is required.';
+        } else if (!isValidEmail(email)) {
+            newErrors.email = 'Enter a valid email address.';
+        }
+
+        if (!password) {
+            newErrors.password = 'Password is required.';
+        } else if (password.length < 6) {
+            newErrors.password = 'Password must be at least 6 characters.';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validate()) return;
+
+        setLoading(true);
+        setErrors({});
+
+        try {
+            const res = await apiPost('http://localhost:8000/api/v1/auth/login', { email, password });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.detail || 'Invalid email or password');
+            }
+            const data = await res.json();
+            
+            setToken(data.access_token, data.user_id);
+            window.location.href = '/dashboard';
+        } catch (err: any) {
+            setErrors({ general: err.message || 'Something went wrong. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const inputStyle = (hasError?: boolean): React.CSSProperties => ({
+        width: '100%',
+        background: 'rgba(255,255,255,0.05)',
+        border: `1px solid ${hasError ? '#EF4444' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: '12px',
+        padding: '12px 16px',
+        color: '#fff',
+        fontSize: '14px',
+        outline: 'none',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.15s ease',
+    });
+
     return (
         <div style={{ minHeight: '100vh', background: '#0A0A0A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
             {/* Ambient glow */}
@@ -30,6 +98,7 @@ export default function LoginPage() {
 
                     {/* Google sign-in */}
                     <button
+                        type="button"
                         onClick={() => window.location.href = 'http://localhost:5173/login'}
                         style={{
                             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
@@ -48,39 +117,103 @@ export default function LoginPage() {
                         <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }} />
                     </div>
 
-                    {/* Email */}
-                    <div style={{ marginBottom: '14px' }}>
-                        <label style={{ fontSize: '12px', color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Email</label>
-                        <input type="email" placeholder="you@example.com" style={{
-                            width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '12px', padding: '12px 16px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-                        }} />
-                    </div>
-                    <div style={{ marginBottom: '24px' }}>
-                        <label style={{ fontSize: '12px', color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Password</label>
-                        <input type="password" placeholder="••••••••" style={{
-                            width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '12px', padding: '12px 16px', color: '#fff', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-                        }} />
-                    </div>
-
-                    <button
-                        onClick={() => window.location.href = '/dashboard'}
-                        style={{
-                            width: '100%', background: '#C8F135', color: '#000', fontWeight: 700, fontSize: '15px',
-                            borderRadius: '14px', padding: '14px', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                            boxShadow: '0 0 24px rgba(200,241,53,0.25)', transition: 'background 0.15s ease',
+                    {/* General error banner */}
+                    {errors.general && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                            borderRadius: '10px', padding: '10px 14px', marginBottom: '16px',
                         }}>
-                        Sign in <ArrowRight size={16} />
-                    </button>
+                            <AlertCircle size={15} color="#EF4444" style={{ flexShrink: 0 }} />
+                            <span style={{ color: '#EF4444', fontSize: '13px' }}>{errors.general}</span>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} noValidate>
+                        {/* Email */}
+                        <div style={{ marginBottom: '14px' }}>
+                            <label style={{ fontSize: '12px', color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Email</label>
+                            <input
+                                id="login-email"
+                                type="email"
+                                placeholder="you@example.com"
+                                value={email}
+                                onChange={(e) => { setEmail(e.target.value); setErrors((prev) => ({ ...prev, email: undefined })); }}
+                                style={inputStyle(!!errors.email)}
+                                autoComplete="email"
+                            />
+                            {errors.email && (
+                                <p style={{ color: '#EF4444', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <AlertCircle size={11} /> {errors.email}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Password */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <label style={{ fontSize: '12px', color: '#9CA3AF', display: 'block', marginBottom: '6px' }}>Password</label>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    id="login-password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => { setPassword(e.target.value); setErrors((prev) => ({ ...prev, password: undefined })); }}
+                                    style={{ ...inputStyle(!!errors.password), paddingRight: '44px' }}
+                                    autoComplete="current-password"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    style={{
+                                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                                        background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '4px',
+                                    }}
+                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                >
+                                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                </button>
+                            </div>
+                            {errors.password && (
+                                <p style={{ color: '#EF4444', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <AlertCircle size={11} /> {errors.password}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Submit */}
+                        <button
+                            id="login-submit"
+                            type="submit"
+                            disabled={loading}
+                            style={{
+                                width: '100%',
+                                background: loading ? 'rgba(200,241,53,0.5)' : '#C8F135',
+                                color: '#000', fontWeight: 700, fontSize: '15px',
+                                borderRadius: '14px', padding: '14px', border: 'none',
+                                cursor: loading ? 'not-allowed' : 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                boxShadow: loading ? 'none' : '0 0 24px rgba(200,241,53,0.25)',
+                                transition: 'background 0.15s ease, box-shadow 0.15s ease',
+                            }}>
+                            {loading
+                                ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Signing in…</>
+                                : <>Sign in <ArrowRight size={16} /></>
+                            }
+                        </button>
+                    </form>
 
                     <p style={{ textAlign: 'center', fontSize: '13px', color: '#4B5563', marginTop: '24px' }}>
                         Don't have an account?{' '}
                         <a href="/register" style={{ color: '#C8F135', textDecoration: 'none', fontWeight: 600 }}>Create one free</a>
                     </p>
                 </div>
+
             </div>
+
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 }
