@@ -63,13 +63,16 @@ class ScreenerAgent:
     def _hitl_check(self, state: ScreenerAgentState):
         """Halts if the query is too ambiguous."""
         prompt = f"""
-        Determine if the user's financial screener query is too vague to extract actionable metrics.
+        Does the following user query contain specific financial filters, actionable parameters, or recognized financial terms (e.g., 'large cap', 'low PE', 'high ROE', specific numbers)?
+        
+        If the query ONLY asks for generic opinions like "show me good stocks", "best stocks to buy", or "what should I invest in" with NO criteria, output exactly: AMBIGUOUS
+        
+        If the query contains ANY filtering criteria, even subjective tags that can be mapped to metrics (like 'undervalued', 'growth', 'momentum', 'large cap', '<15', '>18'), output exactly: CLEAR
+        
         Query: "{state['query']}"
-        If it's just "show me good stocks", "best stocks", output exactly: AMBIGUOUS
-        Otherwise output: CLEAR
         """
         response = self.llm_fast.invoke([HumanMessage(content=prompt)]).content.strip()
-        if "AMBIGUOUS" in response:
+        if "AMBIGUOUS" in response.upper():
             return {
                 "is_ambiguous": True,
                 "ambiguity_message": "Could you be more specific? For example, specify sectors, high momentum, low PE, or high ROE."

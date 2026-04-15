@@ -55,84 +55,93 @@ class ScreenerService:
         
     async def refresh_market_data(self):
         """
-        Simulates fetching deep fundamental and technical parameters for screener.
-        # TODO: replace with cron-populated DB
+        Fetches real market data using yfinance for screener evaluation.
         """
-        new_cache = []
-        random.seed(42) # Consistent mock values per restart
+        import yfinance as yf
+        import asyncio
+        from services.sector_rotation import SectorRotation
 
-        for item in self.universe:
+        async def _fetch_stock(item):
             sym = item["symbol"]
             sector = item["sector"]
             
-            # Base price mock
-            recent = random.uniform(100, 5000)
-            prev = recent * random.uniform(0.95, 1.05)
-            change_pct = ((recent - prev) / prev) * 100
-
-            # --- Mock Fundamentals ---
-            if sector == "Technology":
-                pe = random.uniform(25, 60)
-                roe = random.uniform(18, 35)
-                debt_equity = random.uniform(0.0, 0.2)
-                eps_growth = random.uniform(10, 25)
-            elif sector == "Financials":
-                pe = random.uniform(10, 25)
-                roe = random.uniform(12, 20)
-                debt_equity = random.uniform(1.0, 5.0) # Banks naturally high D/E
-                eps_growth = random.uniform(5, 18)
-            elif sector == "Energy":
-                pe = random.uniform(8, 15)
-                roe = random.uniform(10, 22)
-                debt_equity = random.uniform(0.5, 1.5)
-                eps_growth = random.uniform(0, 15)
-            else:
-                pe = random.uniform(15, 50)
-                roe = random.uniform(8, 30)
-                debt_equity = random.uniform(0.1, 2.0)
-                eps_growth = random.uniform(-5, 30)
+            def _get_yf():
+                ticker = yf.Ticker(sym)
+                fi = ticker.fast_info
+                current = getattr(fi, "last_price", None)
+                prev = getattr(fi, "previous_close", None)
+                market_cap = getattr(fi, "market_cap", 0)
                 
-            roce = roe * random.uniform(0.9, 1.3)
-            revenue_growth = eps_growth * random.uniform(0.8, 1.2)
-            profit_growth = eps_growth * random.uniform(0.9, 1.1)
+                # Fetch 6-month history for technical indicators (RSI, DMAs)
+                hist = ticker.history(period="6mo", auto_adjust=True)
+                
+                # Use .info for fundamentals, gracefully fall back if yf fails to fetch
+                try:
+                    info = ticker.info
+                except Exception:
+                    info = {}
+                    
+                return current, prev, market_cap, hist, info
             
-            # FCF (Free cash flow in crores)
-            fcf = random.uniform(-500, 15000)
+            try:
+                current, prev, market_cap, hist, info = await asyncio.to_thread(_get_yf)
+            except Exception:
+                return None
+                
+            if current is None or hist.empty:
+                return None
             
-            market_cap_cr = random.uniform(5000, 1800000) if item["cap_size"] == "Large" else random.uniform(500, 50000)
-            yield_pct = random.uniform(0.0, 4.5)
+            current = float(current)
+            prev = float(prev) if prev else current
+            change_pct = ((current - prev)/prev) * 100 if prev else 0.0
 
-            # --- Mock Technicals ---
-            rsi = random.uniform(20, 85)
-            dma_50 = recent * random.uniform(0.85, 1.15)
-            dma_200 = recent * random.uniform(0.70, 1.30)
+            # --- Technicals ---
+            closes = hist["Close"]
+            if len(closes) > 30:
+                rsi = SectorRotation.calculate_rsi(closes)
+                dma_50 = closes.rolling(50).mean().iloc[-1]
+                dma_200 = closes.rolling(200).mean().iloc[-1]
+            else:
+                rsi = 50.0
+                dma_50 = current
+                dma_200 = current
             
-            # Flags
-            volume_spike = random.random() > 0.85 # 15% chance of spike
-            wk52_high_breakout = random.random() > 0.90 # 10% chance
-            macd_crossover = random.random() > 0.80
-
-            # Calculate Internal Momentum & Quality Score (0-100)
+            # --- Fundamentals ---
+            pe = info.get("trailingPE") or info.get("forwardPE") or 0.0
+            roe = (info.get("returnOnEquity") or 0.0) * 100
+            yield_pct = (info.get("dividendYield") or 0.0) * 100
+            debt_equity = info.get("debtToEquity") or 0.0
+            eps_growth = (info.get("earningsQuarterlyGrowth") or 0.0) * 100
+            revenue_growth = (info.get("revenueGrowth") or 0.0) * 100
+            profit_growth = eps_growth 
+            fcf = info.get("freeCashflow") or 0.0
+            roce = roe * 1.1 # proxy if missing
+            market_cap_cr = market_cap / 10000000 # Convert to Crores
+            
+            # --- Flags ---
+            vol = hist["Volume"]
+            volume_spike = len(vol) > 5 and vol.iloc[-1] > (vol.iloc[-5:-1].mean() * 2)
+            high_52 = info.get("fiftyTwoWeekHigh", current)
+            wk52_high_breakout = current >= (high_52 * 0.98)
+            macd_crossover = False # simplified
+            
+            # --- Internal Scoring ---
             quality_score = min(100, max(0, (roe * 2) + (eps_growth * 1.5) - (debt_equity * 10)))
             momentum_score = 0
-            if rsi > 50 and rsi < 70: momentum_score += 30
-            elif rsi >= 70: momentum_score += 40 # High momentum
-            if recent > dma_50: momentum_score += 20
-            if recent > dma_200: momentum_score += 20
+            if 50 < rsi < 70: momentum_score += 30
+            elif rsi >= 70: momentum_score += 40
+            if current > dma_50: momentum_score += 20
+            if current > dma_200: momentum_score += 20
             if volume_spike: momentum_score += 15
             if wk52_high_breakout: momentum_score += 15
-            
             momentum_score = min(100, momentum_score)
             
-            # Composite Total Score
-            total_score = (quality_score * 0.5) + (momentum_score * 0.5)
-
-            new_cache.append({
+            return {
                 "symbol": sym,
                 "name": item["name"],
                 "sector": sector,
                 "cap_size": item["cap_size"],
-                "price": round(recent, 2),
+                "price": round(current, 2),
                 "change_pct": round(change_pct, 2),
                 # Fundamentals
                 "pe_ratio": round(pe, 2),
@@ -149,17 +158,26 @@ class ScreenerService:
                 "rsi": round(rsi, 2),
                 "dma_50": round(dma_50, 2),
                 "dma_200": round(dma_200, 2),
-                "volume_spike": volume_spike,
-                "wk52_high_breakout": wk52_high_breakout,
+                "volume_spike": bool(volume_spike),
+                "wk52_high_breakout": bool(wk52_high_breakout),
                 "macd_crossover": macd_crossover,
                 # Scoring
                 "quality_score": round(quality_score, 2),
                 "momentum_score": round(momentum_score, 2),
-                "total_score": round(total_score, 2)
-            })
-            
-        async with self._cache_lock:
-            self.cached_results = new_cache
+                "total_score": round((quality_score*0.5)+(momentum_score*0.5), 2)
+            }
+
+        new_cache = []
+        # Run dynamically, limiting concurrency if needed, but gathering all 40 symbols should be fast enough
+        tasks = [_fetch_stock(item) for item in self.universe]
+        results = await asyncio.gather(*tasks)
+        for r in results:
+            if r:
+                new_cache.append(r)
+                
+        if new_cache:
+            async with self._cache_lock:
+                self.cached_results = new_cache
 
     def screen_assets(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         filtered = list(self.cached_results)
