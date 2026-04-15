@@ -4,16 +4,21 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface AllocationChartProps {
     holdings: any[];
+    prices?: Record<string, { price: number; currency: string }>;
+    usdToInr?: number;
 }
+
 
 const COLORS = ['#C8F135', '#3B82F6', '#F59E0B', '#A855F7', '#10B981'];
 
-export const AllocationChart = ({ holdings }: AllocationChartProps) => {
-    // Generate allocation data from holdings (by asset/symbol for now)
+export const AllocationChart = ({ holdings, prices = {}, usdToInr = 84 }: AllocationChartProps) => {
+    // Generate allocation data using live prices (converted to INR)
     const data = holdings.reduce((acc, h) => {
-        const val = h.quantity * h.avg_buy_price;
-        // using avg_buy_price for allocation since we don't have live prices inside the chart currently,
-        // although ideally we'd pass live values.
+        const pd = prices[h.symbol];
+        const currentPrice = pd?.price && pd.price > 0 ? pd.price : h.avg_buy_price;
+        const currency = pd?.currency || (h.exchange === 'US' ? 'USD' : 'INR');
+        const multiplier = currency === 'USD' ? usdToInr : 1;
+        const val = h.quantity * currentPrice * multiplier;
         const existing = acc.find((e: any) => e.name === h.symbol);
         if (existing) {
             existing.value += val;

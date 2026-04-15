@@ -134,7 +134,6 @@ export const PerformanceChart = ({ userId = "0000-user", holdings = [] }: Perfor
 
     return (
         <div className="bg-white/[0.04] border border-white/[0.08] backdrop-blur-md rounded-2xl p-6 relative min-h-[420px]">
-            {console.log('Rendering PerformanceChart', { loading, dataLength: data.length, period, selectedStock })}
             {/* ── Header row ── */}
             <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
                 <div>

@@ -1,10 +1,9 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/dashboard/portfolio/page": "app/dashboard/portfolio/page.js",
+  "/security/page": "app/security/page.js",
   "/screener/page": "app/screener/page.js",
-  "/chat/page": "app/chat/page.js",
-  "/settings/page": "app/settings/page.js",
+  "/dashboard/portfolio/page": "app/dashboard/portfolio/page.js",
   "/analysis/page": "app/analysis/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
+  "/settings/page": "app/settings/page.js"
 }

@@ -14,7 +14,9 @@ const USER_ID = "0000-user";
 export default function PortfolioPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [holdings, setHoldings] = useState<any[]>([]);
-    const [prices, setPrices] = useState<Record<string, number>>({});
+    const [prices, setPrices] = useState<Record<string, { price: number; currency: string }>>({});
+    const [previousCloses, setPreviousCloses] = useState<Record<string, number>>({});
+    const [usdToInr, setUsdToInr] = useState<number>(84);
     const [alertInitialData, setAlertInitialData] = useState<{ symbol?: string; condition?: string; target_price?: string; note?: string } | null>(null);
 
     useEffect(() => {
@@ -26,18 +28,27 @@ export default function PortfolioPage() {
 
     useEffect(() => {
         if (!holdings?.length) return;
-        const symbolStrings = Array.from(new Set(holdings.map((h: any) => `${h.symbol}|${h.exchange}`))).join(',');
+        const symbolStrings = Array.from(new Set(holdings.map((h: any) => h.exchange ? `${h.symbol}|${h.exchange}` : h.symbol))).join(',');
 
         const fetchPrices = async () => {
             try {
-                const res = await fetch(`/api/v1/market/price?symbols=${encodeURIComponent(symbolStrings)}`);
+                // Also fetch live USD/INR rate alongside holding prices
+                const allSymbols = symbolStrings + ',INR=X';
+                const res = await fetch(`/api/v1/market/price?symbols=${encodeURIComponent(allSymbols)}`);
                 const data = await res.json();
                 if (data.prices) {
-                    const priceMap: Record<string, number> = {};
+                    const priceMap: Record<string, { price: number; currency: string }> = {};
+                    const prevCloseMap: Record<string, number> = {};
                     data.prices.forEach((p: any) => {
-                        priceMap[p.symbol] = p.price;
+                        if (p.symbol === 'INR=X') {
+                            if (p.price > 0) setUsdToInr(p.price);
+                            return;
+                        }
+                        priceMap[p.symbol] = { price: p.price, currency: p.currency || (p.symbol === 'US' ? 'USD' : 'INR') };
+                        prevCloseMap[p.symbol] = p.previous_close || p.price;
                     });
                     setPrices(priceMap);
+                    setPreviousCloses(prevCloseMap);
                 }
             } catch (error) {
                 console.error('Failed to fetch prices for portfolio', error);
@@ -107,16 +118,28 @@ export default function PortfolioPage() {
     // Calculate real-time portfolio stats
     let totalInvested = 0;
     let portfolioValue = 0;
+    let previousPortfolioValue = 0;
     
     holdings.forEach((h: any) => {
-        const currentPrice = prices[h.symbol] || h.avg_buy_price;
-        portfolioValue += h.quantity * currentPrice;
-        totalInvested += h.quantity * h.avg_buy_price;
+        const pd = prices[h.symbol];
+        const currentPrice = pd?.price !== undefined && pd.price > 0 ? pd.price : h.avg_buy_price;
+        const prevClose = previousCloses[h.symbol] || currentPrice;
+        const currency = pd?.currency || (h.exchange === 'US' ? 'USD' : 'INR');
+        
+        const multiplier = currency === 'USD' ? usdToInr : 1;
+        
+        portfolioValue += (h.quantity * currentPrice) * multiplier;
+        totalInvested += (h.quantity * h.avg_buy_price) * multiplier;
+        previousPortfolioValue += (h.quantity * prevClose) * multiplier;
     });
 
     const totalPnL = portfolioValue - totalInvested;
     const totalPnLPct = totalInvested > 0 ? (totalPnL / totalInvested) * 100 : 0;
     const isPositivePnL = totalPnL >= 0;
+
+    const todaysChange = portfolioValue - previousPortfolioValue;
+    const todaysChangePct = previousPortfolioValue > 0 ? (todaysChange / previousPortfolioValue) * 100 : 0;
+    const isPositiveChange = todaysChange >= 0;
 
     const formatCurrency = (val: number) => {
         const isNegative = val < 0;
@@ -142,13 +165,18 @@ export default function PortfolioPage() {
                     subValue={formatPct(totalPnLPct)} 
                     positive={isPositivePnL} 
                 />
-                <PnLCard title="Today's Change" value="₹0.00" subValue="0.00%" positive={true} />
+                <PnLCard 
+                    title="Today's Change" 
+                    value={(isPositiveChange ? '+' : '') + formatCurrency(todaysChange)} 
+                    subValue={formatPct(todaysChangePct)} 
+                    positive={isPositiveChange} 
+                />
             </div>
 
             {/* Middle row: Charts & Table side by side or stacked */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1">
-                    <AllocationChart holdings={holdings} />
+                    <AllocationChart holdings={holdings} prices={prices} usdToInr={usdToInr} />
                 </div>
                 <div className="lg:col-span-2">
                     <HoldingsTable

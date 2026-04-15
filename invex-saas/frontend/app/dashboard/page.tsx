@@ -15,33 +15,12 @@ const DEFAULT_TICKERS: Ticker[] = [
     { label: 'BTC/USD', value: '$94,500', change: '+2.10%', up: true },
 ];
 
-const PORTFOLIO_DATA = [
-    { name: 'Stocks', value: 45, color: '#C8F135' },
-    { name: 'Mutual Funds', value: 25, color: '#3B82F6' },
-    { name: 'Gold', value: 15, color: '#F59E0B' },
-    { name: 'Crypto', value: 10, color: '#A855F7' },
-    { name: 'Bonds', value: 5, color: '#10B981' },
-];
-
-const ANALYSES = [
-    { asset: 'NIFTY 50 ETF', score: '8.4/10', risk: 'Low', rec: 'BUY', date: 'Today' },
-    { asset: 'HDFC Bank', score: '7.1/10', risk: 'Medium', rec: 'HOLD', date: 'Yesterday' },
-    { asset: 'Gold ETF', score: '6.8/10', risk: 'Low', rec: 'BUY', date: '2 days ago' },
-    { asset: 'Reliance Ind.', score: '5.9/10', risk: 'Medium', rec: 'HOLD', date: '3 days ago' },
-    { asset: 'CRYPTO BTC', score: '4.2/10', risk: 'High', rec: 'SELL', date: '4 days ago' },
-];
-
 const REC_ICON: Record<string, React.ReactNode> = {
     BUY: <CheckCircle size={13} color="#C8F135" />,
     HOLD: <MinusCircle size={13} color="#F59E0B" />,
     SELL: <AlertCircle size={13} color="#EF4444" />,
 };
 const REC_COLOR: Record<string, string> = { BUY: '#C8F135', HOLD: '#F59E0B', SELL: '#EF4444' };
-const STAT_CARDS = [
-    { icon: MessageSquare, color: '#3B82F6', label: 'Sessions', value: '12' },
-    { icon: Activity, color: '#A855F7', label: 'Agent Runs', value: '45' },
-    { icon: FileText, color: '#10B981', label: 'Documents', value: '8' },
-];
 
 // Card style
 const card: React.CSSProperties = {
@@ -54,18 +33,51 @@ const card: React.CSSProperties = {
 
 export default function DashboardPage() {
     const [tickers, setTickers] = useState<Ticker[]>(DEFAULT_TICKERS);
+    const [stats, setStats] = useState({ sessions: 0, agentRuns: 0, documents: 0 });
+    const [analyses, setAnalyses] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
-    const fetchTickers = async () => {
+    const fetchData = async () => {
         setLoading(true);
         try {
-            const r = await fetch('/api/v1/market/tickers');
-            const d = await r.json();
-            if (d.tickers) setTickers(d.tickers);
-        } catch { /* keep defaults */ }
-        finally { setLoading(false); }
+            // Fetch Tickers
+            const rTickers = await fetch('/api/v1/market/tickers');
+            if (rTickers.ok) {
+                const d = await rTickers.json();
+                if (d.tickers) setTickers(d.tickers);
+            }
+            // Realistically we will fetch from summary or specific endpoints:
+            // Fetch Sessions
+            const rSessions = await fetch('/api/v1/sessions/');
+            const dSessions = rSessions.ok ? await rSessions.json() : { total: 0 };
+            
+            // Fetch Documents
+            const rDocs = await fetch('/api/v1/documents/');
+            const dDocs = rDocs.ok ? await rDocs.json() : { total: 0 };
+
+            // We default agent runs to 0 until an endpoint specifically tracks agent executions.
+            setStats({
+                sessions: dSessions.total || 0,
+                agentRuns: 0,
+                documents: dDocs.total || 0,
+            });
+
+            // If there's an endpoint for analyses, fetch it here
+            // Currently assuming it starts empty dynamically as requested
+            setAnalyses([]); 
+        } catch (err) { 
+            console.error(err);
+        } finally { 
+            setLoading(false); 
+        }
     };
-    useEffect(() => { fetchTickers(); }, []);
+    useEffect(() => { fetchData(); }, []);
+
+    const statCardsData = [
+        { icon: MessageSquare, color: '#3B82F6', label: 'Sessions', value: stats.sessions },
+        { icon: Activity, color: '#A855F7', label: 'Agent Runs', value: stats.agentRuns },
+        { icon: FileText, color: '#10B981', label: 'Documents', value: stats.documents },
+    ];
 
     return (
         <div style={{ minHeight: '100vh', background: '#0A0A0A', color: '#fff' }}>
@@ -102,7 +114,7 @@ export default function DashboardPage() {
                 {/* LIVE MARKETS */}
                 <p style={{ fontSize: '11px', color: '#6B7280', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '16px' }}>
                     Live Markets
-                    <button onClick={fetchTickers} style={{ marginLeft: '12px', background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', verticalAlign: 'middle' }}>
+                    <button onClick={fetchData} style={{ marginLeft: '12px', background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', verticalAlign: 'middle' }}>
                         <RefreshCw size={11} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
                     </button>
                 </p>
@@ -121,7 +133,7 @@ export default function DashboardPage() {
 
                 {/* STATS ROW */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '28px' }}>
-                    {STAT_CARDS.map((s, i) => (
+                    {statCardsData.map((s, i) => (
                         <div key={i} style={{ ...card, padding: '22px 20px', display: 'flex', alignItems: 'center', gap: '18px' }}>
                             <div style={{ width: '46px', height: '46px', borderRadius: '14px', background: `${s.color}18`, border: `1px solid ${s.color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 <s.icon size={20} color={s.color} />
@@ -184,27 +196,33 @@ export default function DashboardPage() {
                             <span key={h} style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</span>
                         ))}
                     </div>
-                    {ANALYSES.map((row, i) => (
-                        <div key={i} style={{
-                            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
-                            padding: '16px 24px',
-                            borderBottom: i < ANALYSES.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                            alignItems: 'center'
-                        }}>
-                            <span style={{ fontSize: '14px', fontWeight: 500, color: '#fff' }}>{row.asset}</span>
-                            <span style={{ fontSize: '14px', color: '#9CA3AF' }}>{row.score}</span>
-                            <span style={{
-                                display: 'inline-block', fontSize: '12px', fontWeight: 500,
-                                padding: '3px 10px', borderRadius: '999px', width: 'fit-content',
-                                background: row.risk === 'Low' ? 'rgba(16,185,129,0.12)' : row.risk === 'Medium' ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
-                                color: row.risk === 'Low' ? '#10B981' : row.risk === 'Medium' ? '#F59E0B' : '#EF4444',
-                            }}>{row.risk}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: REC_COLOR[row.rec] }}>
-                                {REC_ICON[row.rec]} {row.rec}
-                            </div>
-                            <span style={{ fontSize: '13px', color: '#6B7280' }}>{row.date}</span>
+                    {analyses.length === 0 ? (
+                        <div style={{ padding: '32px 24px', textAlign: 'center', color: '#6B7280', fontSize: '14px' }}>
+                            No analysis has been run yet. Click "+ New Analysis" to start building your portfolio.
                         </div>
-                    ))}
+                    ) : (
+                        analyses.map((row, i) => (
+                            <div key={i} style={{
+                                display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+                                padding: '16px 24px',
+                                borderBottom: i < analyses.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                                alignItems: 'center'
+                            }}>
+                                <span style={{ fontSize: '14px', fontWeight: 500, color: '#fff' }}>{row.asset}</span>
+                                <span style={{ fontSize: '14px', color: '#9CA3AF' }}>{row.score}</span>
+                                <span style={{
+                                    display: 'inline-block', fontSize: '12px', fontWeight: 500,
+                                    padding: '3px 10px', borderRadius: '999px', width: 'fit-content',
+                                    background: row.risk === 'Low' ? 'rgba(16,185,129,0.12)' : row.risk === 'Medium' ? 'rgba(245,158,11,0.12)' : 'rgba(239,68,68,0.12)',
+                                    color: row.risk === 'Low' ? '#10B981' : row.risk === 'Medium' ? '#F59E0B' : '#EF4444',
+                                }}>{row.risk}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: REC_COLOR[row.rec] }}>
+                                    {REC_ICON[row.rec]} {row.rec}
+                                </div>
+                                <span style={{ fontSize: '13px', color: '#6B7280' }}>{row.date}</span>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>

@@ -26,40 +26,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/layout.js"
     ],
-    "/news/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/news/page.js"
-    ],
-    "/news/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/news/layout.js"
-    ],
     "/dashboard/portfolio/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/portfolio/page.js"
     ],
-    "/screener/page": [
+    "/analysis/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/screener/page.js"
+      "static/chunks/app/analysis/page.js"
     ],
-    "/screener/layout": [
+    "/analysis/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/screener/layout.js"
-    ],
-    "/chat/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/chat/page.js"
-    ],
-    "/chat/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/chat/layout.js"
+      "static/chunks/app/analysis/layout.js"
     ],
     "/settings/page": [
       "static/chunks/webpack.js",
@@ -71,15 +51,20 @@
       "static/chunks/main-app.js",
       "static/chunks/app/settings/layout.js"
     ],
-    "/analysis/page": [
+    "/security/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/analysis/page.js"
+      "static/chunks/app/security/page.js"
     ],
-    "/analysis/layout": [
+    "/screener/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/analysis/layout.js"
+      "static/chunks/app/screener/page.js"
+    ],
+    "/screener/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/screener/layout.js"
     ],
     "/_not-found/page": [
       "static/chunks/webpack.js",

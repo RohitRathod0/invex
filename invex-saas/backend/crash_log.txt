@@ -1,18 +1,80 @@
-Traceback (most recent call last):
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 324, in jsonable_encoder
-    data = dict(obj)
-           ^^^^^^^^^
-TypeError: 'numpy.bool_' object is not iterable
+  + Exception Group Traceback (most recent call last):
+  |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_utils.py", line 76, in collapse_excgroups
+  |     yield
+  |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\base.py", line 186, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "C:\Users\rohit\anaconda3\Lib\site-packages\anyio\_backends\_asyncio.py", line 783, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    |     with collapse_excgroups():
+    |          ^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    |     raise exc
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    |     response = await self.dispatch_func(request, call_next)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\OneDrive\Desktop\invex\invex-saas\backend\middleware\request_logger.py", line 53, in dispatch
+    |     response: Response = await call_next(request)
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    |     raise app_exc
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    |     await self.app(scope, receive_or_disconnect, send_no_error)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 735, in app
+    |     await route.handle(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 288, in handle
+    |     await self.app(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 76, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 73, in app
+    |     response = await f(request)
+    |                ^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\routing.py", line 338, in app
+    |     response = actual_response_class(content, **response_args)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 180, in __init__
+    |     super().__init__(content, status_code, headers, media_type, background)
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 43, in __init__
+    |     self.body = self.render(content)
+    |                 ^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 183, in render
+    |     return json.dumps(
+    |            ^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\json\__init__.py", line 238, in dumps
+    |     **kw).encode(obj)
+    |           ^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\json\encoder.py", line 200, in encode
+    |     chunks = self.iterencode(o, _one_shot=True)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "C:\Users\rohit\anaconda3\Lib\json\encoder.py", line 258, in iterencode
+    |     return _iterencode(o, 0)
+    |            ^^^^^^^^^^^^^^^^^
+    | ValueError: Out of range float values are not JSON compliant: nan
+    +------------------------------------
 
 During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 329, in jsonable_encoder
-    data = vars(obj)
-           ^^^^^^^^^
-TypeError: vars() argument must have __dict__ attribute
-
-The above exception was the direct cause of the following exception:
 
 Traceback (most recent call last):
   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
@@ -57,20 +119,24 @@ Traceback (most recent call last):
   File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\routing.py", line 73, in app
     response = await f(request)
                ^^^^^^^^^^^^^^^^
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\routing.py", line 327, in app
-    content = await serialize_response(
-              ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\routing.py", line 201, in serialize_response
-    return jsonable_encoder(response_content)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 289, in jsonable_encoder
-    encoded_value = jsonable_encoder(
-                    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 303, in jsonable_encoder
-    jsonable_encoder(
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 289, in jsonable_encoder
-    encoded_value = jsonable_encoder(
-                    ^^^^^^^^^^^^^^^^^
-  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\encoders.py", line 332, in jsonable_encoder
-    raise ValueError(errors) from e
-ValueError: [TypeError("'numpy.bool_' object is not iterable"), TypeError('vars() argument must have __dict__ attribute')]
+  File "C:\Users\rohit\anaconda3\Lib\site-packages\fastapi\routing.py", line 338, in app
+    response = actual_response_class(content, **response_args)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 180, in __init__
+    super().__init__(content, status_code, headers, media_type, background)
+  File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 43, in __init__
+    self.body = self.render(content)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rohit\anaconda3\Lib\site-packages\starlette\responses.py", line 183, in render
+    return json.dumps(
+           ^^^^^^^^^^^
+  File "C:\Users\rohit\anaconda3\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Users\rohit\anaconda3\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\rohit\anaconda3\Lib\json\encoder.py", line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+ValueError: Out of range float values are not JSON compliant: nan

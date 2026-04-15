@@ -39,11 +39,19 @@ def resolve_yf_symbol(symbol: str, exchange: str = "") -> str:
         return s
 
     # Explicit exchange overrides — covers any company on that exchange
-    if exch in ("US", "NYSE", "NASDAQ", "AMEX"):
+    if exch in ("US", "NYSE", "NASDAQ", "AMEX", "UNDEFINED"):
         return s          # US equities — no suffix needed
     if exch == "BSE":
         return s + ".BO"  # Bombay Stock Exchange
 
+    # Heuristic for popular US tickers that often lack an exchange hint
+    _POPULAR_US_TICKERS = {
+        "TSLA", "NVDA", "AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "META", 
+        "NFLX", "AMD", "INTC", "BA", "DIS", "JPM", "V", "MA"
+    }
+    if s in _POPULAR_US_TICKERS:
+        return s
+        
     # Default → NSE (covers NSE, blank, or unknown Indian exchange)
     return s + ".NS"
 
