@@ -5,6 +5,9 @@ from slowapi.util import get_remote_address
 from services.market_service import get_indices, get_stock_price, get_stock_history
 from services.data_aggregator import aggregator
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/market", tags=["market"])
 limiter = Limiter(key_func=get_remote_address)
@@ -59,9 +62,14 @@ async def get_market_tickers(request: Request):
 @router.get("/indices")
 @limiter.limit("60/minute")
 async def get_market_indices(request: Request):
-    """Returns NIFTY, SENSEX, BANKNIFTY etc. Rate limited: 60/minute."""
-    data = await get_indices()
-    return {"indices": data}
+    """Returns live NIFTY, SENSEX, BANKNIFTY, S&P500, Gold, Crude, BTC, USD/INR via yfinance. Rate limited: 60/minute."""
+    try:
+        data = await get_indices()
+        return {"indices": data}
+    except Exception as e:
+        import traceback
+        logger.error(f"indices route failed: {traceback.format_exc()}")
+        return {"indices": [], "error": str(e)}
 
 @router.get("/price")
 @limiter.limit("60/minute")

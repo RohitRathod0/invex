@@ -1042,6 +1042,9 @@ video {
 .h-full {
   height: 100%;
 }
+.h-\[44px\] {
+  height: 44px;
+}
 .max-h-48 {
   max-height: 12rem;
 }
@@ -1311,6 +1314,9 @@ video {
 }
 .gap-8 {
   gap: 2rem;
+}
+.gap-7 {
+  gap: 1.75rem;
 }
 .space-x-2 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-x-reverse: 0;
@@ -1903,6 +1909,10 @@ video {
 }
 .italic {
   font-style: italic;
+}
+.tabular-nums {
+  --tw-numeric-spacing: tabular-nums;
+  font-variant-numeric: var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);
 }
 .leading-relaxed {
   line-height: 1.625;

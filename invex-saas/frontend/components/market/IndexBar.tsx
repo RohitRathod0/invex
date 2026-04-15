@@ -11,6 +11,26 @@ interface IndexData {
     value: number;
     change_pct: number;
     up: boolean;
+    error?: string;
+}
+
+// Symbols that are priced in USD (show $ not ₹)
+const USD_SYMBOLS = new Set(["^GSPC", "GC=F", "CL=F", "BTC-USD", "INR=X"]);
+
+function formatValue(idx: IndexData): string {
+    if (idx.value === 0) return '—';
+    const isUSD = USD_SYMBOLS.has(idx.symbol);
+
+    if (idx.name === 'USD/INR') {
+        return `₹${idx.value.toFixed(2)}`;
+    }
+    if (isUSD) {
+        // Compact formatting for large USD values (BTC)
+        if (idx.value >= 10000) return `$${idx.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+        return `$${idx.value.toFixed(2)}`;
+    }
+    // INR indices — no decimal for large numbers
+    return `₹${idx.value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
 export const IndexBar = () => {
@@ -20,8 +40,12 @@ export const IndexBar = () => {
     const fetchIndices = async () => {
         try {
             const res = await fetch('/api/v1/market/indices');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            if (data.indices) setIndices(data.indices);
+            if (Array.isArray(data.indices) && data.indices.length > 0) {
+                // Filter out zero-value errors for display cleanliness
+                setIndices(data.indices.filter((i: IndexData) => i.value > 0));
+            }
         } catch (error) {
             console.error('Failed to fetch indices', error);
         } finally {
@@ -31,36 +55,40 @@ export const IndexBar = () => {
 
     useEffect(() => {
         fetchIndices();
-        // Refresh every 15 seconds
-        const interval = setInterval(fetchIndices, 15000);
+        // Refresh every 30 seconds (yfinance has its own latency, no need to spam)
+        const interval = setInterval(fetchIndices, 30000);
         return () => clearInterval(interval);
     }, []);
 
     if (loading && indices.length === 0) {
         return (
-            <div className="bg-[#0D0D0D] border-b border-white/5 px-8 pt-[60px] pb-2 flex gap-8 overflow-x-auto h-[100px] items-end justify-center">
-                <Loader2 size={16} className="text-gray-500 animate-spin" />
+            <div className="bg-[#0D0D0D] border-b border-white/5 px-8 py-2 flex gap-8 h-[44px] items-center justify-center">
+                <Loader2 size={14} className="text-gray-600 animate-spin" />
+                <span className="text-xs text-gray-600">Loading live market data...</span>
             </div>
         );
     }
 
-    // Add padding top to account for the sticky app header that might exist, though we can just pad normally
     return (
         <div className="bg-[#0D0D0D] border-b border-white/5 px-6 py-2 flex items-center gap-6 overflow-x-auto whitespace-nowrap scrollbar-hide">
-            {/* Indices — scrollable */}
-            <div className="flex items-center gap-8 flex-1 overflow-x-auto scrollbar-hide">
+            {/* Indices — scrollable ticker strip */}
+            <div className="flex items-center gap-7 flex-1 overflow-x-auto scrollbar-hide">
                 {indices.map((idx) => (
-                    <div key={idx.symbol} className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs font-semibold text-gray-400 tracking-wider uppercase">{idx.name}</span>
-                        <span className="text-sm font-bold text-white transition-all">
-                            {idx.name === 'USD/INR' || idx.name === 'GOLD' ? '' : '₹'}
-                            {idx.value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    <div key={idx.symbol} className="flex items-center gap-2.5 shrink-0">
+                        <span className="text-[10px] font-semibold text-gray-500 tracking-wider uppercase">
+                            {idx.name}
+                        </span>
+                        <span className="text-xs font-bold text-white tabular-nums">
+                            {formatValue(idx)}
                         </span>
                         <div className={cn(
-                            "flex items-center text-xs font-medium px-1.5 py-0.5 rounded-md",
+                            "flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md tabular-nums",
                             idx.up ? "text-[#C8F135] bg-[#C8F135]/10" : "text-red-400 bg-red-400/10"
                         )}>
-                            {idx.up ? <ArrowUpRight size={12} className="mr-0.5" /> : <ArrowDownRight size={12} className="mr-0.5" />}
+                            {idx.up
+                                ? <ArrowUpRight size={10} className="mr-0.5" />
+                                : <ArrowDownRight size={10} className="mr-0.5" />
+                            }
                             {Math.abs(idx.change_pct).toFixed(2)}%
                         </div>
                     </div>

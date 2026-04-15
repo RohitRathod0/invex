@@ -81,17 +81,23 @@ class PortfolioAnalystAgent:
         return workflow.compile()
 
     def _fetch_context(self, state: PortfolioAnalystState):
-        """Fetches live news if not provided."""
+        """Fetches live news ONLY if news_data is not already provided (e.g. from @ citation).
+        Skipping the fetch avoids 50+ sequential RSS+yfinance calls for every chat turn.
+        LangGraph runs sync nodes in a thread pool automatically, so _run() is safe here.
+        """
         news_data = state.get("news_data", "")
-        if not news_data:
-            try:
-                # Utilizing existing news scraper tool
-                news_data = self.news_tool._run()
-            except Exception as e:
-                logger.error(f"Failed to fetch news: {str(e)}")
-                news_data = "Unable to fetch live news at this moment. Proceed based on user query and internal knowledge only."
+        if news_data:
+            # Already has context — cited news item from frontend, no re-fetch needed
+            return {"news_data": news_data, "attempt": state.get("attempt", 0) + 1}
+        
+        try:
+            news_data = self.news_tool._run()
+        except Exception as e:
+            logger.error(f"Failed to fetch news: {str(e)}")
+            news_data = "Unable to fetch live news. Proceed based on user query and portfolio context only."
                 
         return {"news_data": news_data, "attempt": state.get("attempt", 0) + 1}
+
 
     def _analyze_impact(self, state: PortfolioAnalystState):
         """Generates the primary personalized impact report based on news and portfolio context."""
@@ -187,13 +193,25 @@ class PortfolioAnalystAgent:
         )
         return {"analysis": state.get("analysis", "") + "\n\n" + safe_response, "is_complete": True}
 
-    async def run_analyst(self, user_query: str, portfolio_context: str, chat_history: List[Dict[str, str]] = None, max_attempts: int = 3) -> Dict[str, Any]:
-        """Entry point for the REST API endpoint."""
+    async def run_analyst(
+        self,
+        user_query: str,
+        portfolio_context: str,
+        chat_history: List[Dict[str, str]] = None,
+        news_data: str = None,
+        max_attempts: int = 3
+    ) -> Dict[str, Any]:
+        """Entry point for the REST API endpoint.
+        
+        Args:
+            news_data: Pre-fetched news text (e.g. from frontend @ citation).
+                       When provided, skips the expensive RSS+yfinance fetch entirely.
+        """
         init_state = {
             "query": user_query,
             "chat_history": chat_history or [],
             "portfolio_context": portfolio_context,
-            "news_data": "",
+            "news_data": news_data or "",  # Empty string → fetch; non-empty → skip fetch
             "analysis": "",
             "is_complete": False,
             "feedback": "",

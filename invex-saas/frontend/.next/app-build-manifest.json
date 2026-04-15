@@ -41,6 +41,16 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/portfolio/page.js"
     ],
+    "/screener/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/screener/page.js"
+    ],
+    "/screener/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/screener/layout.js"
+    ],
     "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

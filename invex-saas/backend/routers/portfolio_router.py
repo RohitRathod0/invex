@@ -7,6 +7,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 import pandas as pd
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 from models.database import get_db
 from models.db_models import Holding
@@ -454,14 +457,17 @@ async def run_monte_carlo_stress_test(
 class AnalyzeNewsRequest(BaseModel):
     query: Optional[str] = "Analyze the impact of today's news on my portfolio."
     chat_history: Optional[List[dict]] = None
+    news_context: Optional[str] = None  # Pre-loaded news item from frontend @ citation
 
 @router.post("/analyze-news/{user_id}")
 @limiter.limit("10/minute")
 async def analyze_portfolio_news(request: Request, user_id: str, payload: AnalyzeNewsRequest, db: Session = Depends(get_db)):
     """
     Invokes the LangGraph portfolio analyst to analyze market news impacts on the user's specific holdings.
+    When news_context is provided (from @ citation), skips expensive RSS re-fetch.
     """
     from services.portfolio_analyst_agent import portfolio_analyst
+    import traceback
     
     holdings = db.query(Holding).filter(Holding.user_id == user_id).all()
     
@@ -472,6 +478,19 @@ async def analyze_portfolio_news(request: Request, user_id: str, payload: Analyz
         for h in holdings:
             context_lines.append(f"- {h.quantity} shares of {h.symbol} at {h.avg_buy_price} (Exchange: {h.exchange})")
         portfolio_context = "\n".join(context_lines)
-        
-    result = await portfolio_analyst.run_analyst(payload.query, portfolio_context, chat_history=payload.chat_history)
-    return result
+    
+    try:
+        result = await portfolio_analyst.run_analyst(
+            user_query=payload.query,
+            portfolio_context=portfolio_context,
+            chat_history=payload.chat_history,
+            news_data=payload.news_context,  # Pass cited news directly — skips RSS fetch
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Portfolio analyst failed: {traceback.format_exc()}")
+        return {
+            "analysis": f"The portfolio analyst encountered an error. Please try again.\n\nDetails: {str(e)}",
+            "is_complete": False,
+            "attempts": 0
+        }

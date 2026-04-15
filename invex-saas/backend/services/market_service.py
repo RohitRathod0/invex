@@ -3,12 +3,15 @@ from typing import List, Dict, Any
 from .data_aggregator import aggregator, resolve_yf_symbol
 
 INDICES = {
-    "NIFTY 50": "^NSEI",
-    "SENSEX": "^BSESN",
+    "NIFTY 50":   "^NSEI",
+    "SENSEX":     "^BSESN",
     "BANK NIFTY": "^NSEBANK",
-    "NIFTY IT": "^CNXIT",
-    "GOLD": "GC=F",
-    "USD/INR": "INR=X",
+    "NIFTY IT":   "^CNXIT",
+    "S&P 500":    "^GSPC",
+    "GOLD":       "GC=F",
+    "CRUDE OIL":  "CL=F",
+    "BTC/USD":    "BTC-USD",
+    "USD/INR":    "INR=X",
 }
 
 _INDEX_SYMBOLS = set(INDICES.values())
@@ -21,40 +24,49 @@ def _is_inr_symbol(raw_symbol: str) -> bool:
 
 
 async def get_indices() -> List[Dict[str, Any]]:
+    """Fetch live index prices directly via yfinance (fast_info path, no aggregator)."""
+    import asyncio
+    import yfinance as yf
+    import time
+
     results = []
-    for name, symbol in INDICES.items():
+
+    def _fetch_one(name: str, symbol: str) -> Dict[str, Any]:
         try:
-            data = await aggregator.get_price(symbol)
-            if data:
-                current = data.get("current_price") or 0.0
-                prev_close = data.get("previous_close") or current
-                chg_pct = ((current - prev_close) / prev_close) * 100 if prev_close else 0.0
-                results.append({
-                    "name": name,
-                    "symbol": symbol,
-                    "value": current,
-                    "change_pct": round(chg_pct, 2),
-                    "up": chg_pct >= 0,
-                })
-            else:
-                results.append({
-                    "name": name,
-                    "symbol": symbol,
-                    "value": 0,
-                    "change_pct": 0.0,
-                    "up": True,
-                    "error": "Failed to fetch index",
-                })
-        except Exception as e:
-            results.append({
+            ticker = yf.Ticker(symbol)
+            fi = ticker.fast_info
+            current = getattr(fi, "last_price", None)
+            prev_close = getattr(fi, "previous_close", None)
+
+            # History fallback if fast_info gives nothing
+            if not current:
+                hist = ticker.history(period="2d", auto_adjust=True)
+                if not hist.empty:
+                    current = float(hist["Close"].iloc[-1])
+                    prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else current
+
+            if not current:
+                return {"name": name, "symbol": symbol, "value": 0, "change_pct": 0.0, "up": True, "error": "No data"}
+
+            current = round(float(current), 2)
+            prev_close = round(float(prev_close), 2) if prev_close else current
+            chg_pct = round(((current - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
+            return {
                 "name": name,
                 "symbol": symbol,
-                "value": 0,
-                "change_pct": 0.0,
-                "up": True,
-                "error": str(e),
-            })
+                "value": current,
+                "change_pct": chg_pct,
+                "up": chg_pct >= 0,
+            }
+        except Exception as e:
+            return {"name": name, "symbol": symbol, "value": 0, "change_pct": 0.0, "up": True, "error": str(e)}
+
+    # Fetch all tickers concurrently in thread pool
+    loop = asyncio.get_event_loop()
+    tasks = [loop.run_in_executor(None, _fetch_one, name, symbol) for name, symbol in INDICES.items()]
+    results = list(await asyncio.gather(*tasks))
     return results
+
 
 
 async def get_stock_price(symbols: List[str]) -> List[Dict[str, Any]]:
