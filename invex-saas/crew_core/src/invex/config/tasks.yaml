@@ -1,0 +1,123 @@
+analyze_markets:
+  description: >
+    Analyze the Indian stock market and mutual funds for investment opportunities.
+
+    User preferences: Stocks={stocks}, Mutual Funds={mutual_funds}
+    Only analyze asset classes where preference=True. Skip the rest.
+
+    Parameters:
+    - Capital: ₹{capital_amount} | Risk: {risk_percentage}% ({risk_tolerance})
+    - Returns target: {expected_returns}% | Duration: {duration_years} years
+    - Date: {current_date}
+
+    Use the Top Stocks tool to find actual high performers (not just Reliance/TCS).
+    For each recommendation: ticker, current price, 52w return, 1-2 key reasons, suggested allocation.
+  expected_output: >
+    Concise market analysis. For each recommended stock/fund:
+    - Name, symbol, current price, 52-week return
+    - Top 3 reasons to invest (data-backed)
+    - Suggested ₹ allocation and # of shares/units
+    - Risk: Low/Medium/High
+
+    If stocks=False: "Stock analysis skipped per user preference."
+    If mutual_funds=False: "Mutual fund analysis skipped per user preference."
+  agent: market_analyst
+
+analyze_economy:
+  description: >
+    Analyze India's current macroeconomic environment for investment context.
+
+    Fetch GDP growth rate and CPI inflation. Explain in 3-4 sentences how current
+    conditions affect the user's portfolio. Note any sector tailwinds/headwinds.
+
+    User parameters: Risk={risk_percentage}% ({risk_tolerance}),
+    Expected returns={expected_returns}%, Duration={duration_years} years
+  expected_output: >
+    Brief macro summary (200-300 words):
+    - Current India GDP growth rate and trend
+    - Current CPI inflation and direction
+    - Impact on equity/gold/crypto for {duration_years}-year horizon
+    - Whether {expected_returns}% annual target is realistic given current conditions
+  agent: macro_economist
+
+analyze_alternatives:
+  description: >
+    Analyze gold and cryptocurrency for portfolio diversification.
+
+    User preferences: Gold={gold}, Crypto={crypto}
+    Only analyze where preference=True.
+
+    Parameters: Risk={risk_percentage}% ({risk_tolerance}),
+    Returns target={expected_returns}%, Date={current_date}
+
+    For gold: current price, SGB vs ETF comparison, portfolio allocation %.
+    For crypto: top 1-2 coins only, current price, suggested allocation (keep small).
+  expected_output: >
+    For each selected alternative asset:
+    - Current price/value
+    - 3 key reasons for inclusion
+    - Suggested ₹ allocation and %
+    - Risk rating
+
+    If gold=False: "Gold skipped per user preference."
+    If crypto=False: "Crypto skipped per user preference."
+  agent: alternative_assets_analyst
+
+optimize_portfolio:
+  description: >
+    Create final asset allocation based on all research. STRICT RULES:
+    - Assets with preference=False get exactly 0% allocation
+    - Only distribute across True assets; total must equal 100%
+
+    Preferences: Stocks={stocks}, Mutual Funds={mutual_funds},
+    Gold={gold}, Crypto={crypto}
+
+    Inputs: Capital=₹{capital_amount}, Risk={risk_percentage}% ({risk_tolerance}),
+    Target={expected_returns}%, Duration={duration_years} years ({investment_horizon})
+
+    Validate if portfolio can realistically reach the {expected_returns}% target.
+    If not, suggest the adjustment with smallest change needed.
+  expected_output: >
+    ## Portfolio Summary
+    Total Capital: ₹{capital_amount} | Risk: {risk_percentage}% | Horizon: {investment_horizon}
+
+    ## Asset Allocation
+    | Asset | % | ₹ Amount | Top Holding |
+    |-------|---|----------|-------------|
+    [Fill for True assets only; 0% for False assets]
+    **Total: 100%**
+
+    ## Return Validation
+    - Portfolio projected return: [X]% annually (conservative estimate)
+    - User target: {expected_returns}%
+    - Achievable? [Yes/Partially/No - brief explanation]
+    - If no: [ONE specific adjustment recommended]
+  agent: portfolio_optimizer
+  context:
+    - analyze_markets
+    - analyze_economy
+    - analyze_alternatives
+
+generate_report:
+  description: >
+    Synthesize all the research into the final PortfolioReport JSON structure.
+    You MUST output valid JSON strictly matching the provided PortfolioReport schema.
+
+    Include ONLY selected asset classes ({stocks}=stocks, {mutual_funds}=mutual funds,
+    {gold}=gold, {crypto}=crypto). Total allocation across selected assets MUST = 100%.
+
+    User target: {expected_returns}% annually over {duration_years} years
+    Starting capital: ₹{capital_amount} | Risk: {risk_percentage}% ({risk_tolerance})
+  expected_output: >
+    A JSON object matching the PortfolioReport Pydantic schema perfectly.
+    
+    CRITICAL INSTRUCTIONS:
+    1. Do NOT wrap the JSON in markdown blocks (no ```json ... ```)
+    2. The root object must contain keys: generated_date, user_risk_profile, total_capital, 
+       recommendations (list), portfolio_stats, diversification_score, sector_allocation, 
+       asset_class_allocation, rebalancing_triggers, macro_context, next_review_date
+    3. Ensure recommendations list has robust reasons.
+    4. Ensure asset_class_allocation sums to 100.
+  agent: report_writer
+  context:
+    - optimize_portfolio
