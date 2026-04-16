@@ -131,3 +131,32 @@ class RequestLog(Base):
     ip_address = Column(String)
     user_agent = Column(String, nullable=True)
     timestamp = Column(DateTime, default=func.now())
+
+class EarningsAnalysisHistory(Base):
+    __tablename__ = "earnings_analysis_history"
+
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    company = Column(String(20), index=True)
+    quarter = Column(String(40), index=True)
+    source_type = Column(String(30), default="manual")
+    analysis_mode = Column(String(50), default="phase_1_transcript_analysis")
+    transcript_excerpt = Column(Text, nullable=True)
+    previous_transcript_excerpt = Column(Text, nullable=True)
+    market_tone = Column(String(50), nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    analysis_json = Column(Text)
+    created_at = Column(DateTime, default=func.now(), index=True)
+
+class EarningsWatchAlert(Base):
+    __tablename__ = "earnings_watch_alerts"
+
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    user_id = Column(String, index=True, default="0000-user")
+    symbol = Column(String(20), index=True)
+    earnings_date = Column(DateTime, index=True)
+    notify_before_hours = Column(Integer, default=24)
+    note = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    notified_at = Column(DateTime, nullable=True)
+    latest_analysis_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now(), index=True)

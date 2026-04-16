@@ -1,6 +1,8 @@
 import asyncio
 import pandas as pd
 import random
+import math
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 class ScreenerService:
@@ -51,7 +53,16 @@ class ScreenerService:
         
         self.universe = [{"symbol": s[0], "name": s[1], "sector": s[2], "cap_size": s[3]} for s in raw_symbols]
         self.cached_results = []
-        self._cache_lock = asyncio.Lock()
+        self.last_updated_at = None
+        self.refresh_ttl = timedelta(seconds=60)
+        self._refresh_lock = asyncio.Lock()
+
+    def _safe_number(self, value, default=0.0):
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+        return number if math.isfinite(number) else default
         
     async def refresh_market_data(self):
         """
@@ -91,37 +102,37 @@ class ScreenerService:
             if current is None or hist.empty:
                 return None
             
-            current = float(current)
-            prev = float(prev) if prev else current
+            current = self._safe_number(current)
+            prev = self._safe_number(prev, current) if prev else current
             change_pct = ((current - prev)/prev) * 100 if prev else 0.0
 
             # --- Technicals ---
             closes = hist["Close"]
             if len(closes) > 30:
-                rsi = SectorRotation.calculate_rsi(closes)
-                dma_50 = closes.rolling(50).mean().iloc[-1]
-                dma_200 = closes.rolling(200).mean().iloc[-1]
+                rsi = self._safe_number(SectorRotation.calculate_rsi(closes), 50.0)
+                dma_50 = self._safe_number(closes.rolling(50).mean().iloc[-1], current)
+                dma_200 = self._safe_number(closes.rolling(200).mean().iloc[-1], current)
             else:
                 rsi = 50.0
                 dma_50 = current
                 dma_200 = current
             
             # --- Fundamentals ---
-            pe = info.get("trailingPE") or info.get("forwardPE") or 0.0
-            roe = (info.get("returnOnEquity") or 0.0) * 100
-            yield_pct = (info.get("dividendYield") or 0.0) * 100
-            debt_equity = info.get("debtToEquity") or 0.0
-            eps_growth = (info.get("earningsQuarterlyGrowth") or 0.0) * 100
-            revenue_growth = (info.get("revenueGrowth") or 0.0) * 100
+            pe = self._safe_number(info.get("trailingPE") or info.get("forwardPE"))
+            roe = self._safe_number(info.get("returnOnEquity")) * 100
+            yield_pct = self._safe_number(info.get("dividendYield")) * 100
+            debt_equity = self._safe_number(info.get("debtToEquity"))
+            eps_growth = self._safe_number(info.get("earningsQuarterlyGrowth")) * 100
+            revenue_growth = self._safe_number(info.get("revenueGrowth")) * 100
             profit_growth = eps_growth 
-            fcf = info.get("freeCashflow") or 0.0
+            fcf = self._safe_number(info.get("freeCashflow"))
             roce = roe * 1.1 # proxy if missing
-            market_cap_cr = market_cap / 10000000 # Convert to Crores
+            market_cap_cr = self._safe_number(market_cap) / 10000000 # Convert to Crores
             
             # --- Flags ---
             vol = hist["Volume"]
             volume_spike = len(vol) > 5 and vol.iloc[-1] > (vol.iloc[-5:-1].mean() * 2)
-            high_52 = info.get("fiftyTwoWeekHigh", current)
+            high_52 = self._safe_number(info.get("fiftyTwoWeekHigh"), current)
             wk52_high_breakout = current >= (high_52 * 0.98)
             macd_crossover = False # simplified
             
@@ -176,8 +187,28 @@ class ScreenerService:
                 new_cache.append(r)
                 
         if new_cache:
-            async with self._cache_lock:
-                self.cached_results = new_cache
+            self.cached_results = new_cache
+            self.last_updated_at = datetime.now().isoformat()
+
+    async def ensure_market_data_fresh(self, force: bool = False):
+        if not force and self.cached_results and self.last_updated_at:
+            try:
+                last_updated = datetime.fromisoformat(self.last_updated_at)
+                if datetime.now() - last_updated < self.refresh_ttl:
+                    return
+            except ValueError:
+                pass
+
+        async with self._refresh_lock:
+            if not force and self.cached_results and self.last_updated_at:
+                try:
+                    last_updated = datetime.fromisoformat(self.last_updated_at)
+                    if datetime.now() - last_updated < self.refresh_ttl:
+                        return
+                except ValueError:
+                    pass
+
+            await self.refresh_market_data()
 
     def screen_assets(self, filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         filtered = list(self.cached_results)
@@ -223,11 +254,3 @@ class ScreenerService:
         return filtered
 
 screener_service = ScreenerService()
-
-import threading
-def background_loader():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(screener_service.refresh_market_data())
-
-threading.Thread(target=background_loader, daemon=True).start()

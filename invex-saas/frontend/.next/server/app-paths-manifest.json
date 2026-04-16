@@ -1,9 +1,7 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/security/page": "app/security/page.js",
+  "/onboarding/page": "app/onboarding/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/screener/page": "app/screener/page.js",
-  "/dashboard/portfolio/page": "app/dashboard/portfolio/page.js",
-  "/analysis/page": "app/analysis/page.js",
-  "/settings/page": "app/settings/page.js"
+  "/insider/page": "app/insider/page.js",
+  "/earnings/page": "app/earnings/page.js"
 }

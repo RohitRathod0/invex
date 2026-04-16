@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+import math
 
 from .data_aggregator import aggregator, resolve_yf_symbol
 
@@ -15,6 +16,13 @@ INDICES = {
 }
 
 _INDEX_SYMBOLS = set(INDICES.values())
+
+def _safe_number(value: Any, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return number if math.isfinite(number) else default
 
 
 def _is_inr_symbol(raw_symbol: str) -> bool:
@@ -48,14 +56,14 @@ async def get_indices() -> List[Dict[str, Any]]:
             if not current:
                 return {"name": name, "symbol": symbol, "value": 0, "change_pct": 0.0, "up": True, "error": "No data"}
 
-            current = round(float(current), 2)
-            prev_close = round(float(prev_close), 2) if prev_close else current
+            current = round(_safe_number(current), 2)
+            prev_close = round(_safe_number(prev_close, current), 2) if prev_close else current
             chg_pct = round(((current - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
             return {
                 "name": name,
                 "symbol": symbol,
-                "value": current,
-                "change_pct": chg_pct,
+                "value": _safe_number(current),
+                "change_pct": _safe_number(chg_pct),
                 "up": chg_pct >= 0,
             }
         except Exception as e:

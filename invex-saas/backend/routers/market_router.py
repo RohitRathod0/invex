@@ -6,6 +6,7 @@ from services.market_service import get_indices, get_stock_price, get_stock_hist
 from services.data_aggregator import aggregator
 from datetime import datetime
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,15 @@ TICKERS = {
     "gold":     {"symbol": "GC=F",    "label": "Gold",       "currency": "$"},
     "btc":      {"symbol": "BTC-USD", "label": "BTC/USD",    "currency": "$"},
 }
+
+def _json_safe(value):
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
 
 def _fmt(value: float, symbol: str) -> str:
     if symbol in ("^NSEI", "^BSESN"):
@@ -65,7 +75,7 @@ async def get_market_indices(request: Request):
     """Returns live NIFTY, SENSEX, BANKNIFTY, S&P500, Gold, Crude, BTC, USD/INR via yfinance. Rate limited: 60/minute."""
     try:
         data = await get_indices()
-        return {"indices": data}
+        return _json_safe({"indices": data})
     except Exception as e:
         import traceback
         logger.error(f"indices route failed: {traceback.format_exc()}")
@@ -184,15 +194,22 @@ async def get_screener(request: Request):
     print("----- ENTERED GET_SCREENER ROUTE -----")
     try:
         from services.screener_service import screener_service
+        force_refresh = str(request.query_params.get("refresh", "")).lower() == "true"
+        await screener_service.ensure_market_data_fresh(force=force_refresh)
         # Convert query params to dict handling optional types
         filters = {}
         for k, v in request.query_params.items():
+            if k == "refresh":
+                continue
             if v.lower() == 'true': v = True
             elif v.lower() == 'false': v = False
             filters[k] = v
             
         results = screener_service.screen_assets(filters)
-        return {"results": results}
+        return _json_safe({
+            "results": results,
+            "last_updated": screener_service.last_updated_at,
+        })
     except Exception as e:
         import traceback
         err = traceback.format_exc()
@@ -210,7 +227,9 @@ class AIInsightsRequest(BaseModel):
 @limiter.limit("10/minute")
 async def get_screener_insights(request: Request, body: AIInsightsRequest):
     """Generates 'Why this stock matched' using llama-3.3-70b"""
+    from services.screener_service import screener_service
     from services.screener_agent import ScreenerAgent
+    await screener_service.ensure_market_data_fresh()
     agent = ScreenerAgent()
     insights = await agent.generate_insights(body.symbols)
     return {"insights": insights}
@@ -222,7 +241,12 @@ class AIAssistantRequest(BaseModel):
 @limiter.limit("20/minute")
 async def ask_screener_assistant(request: Request, body: AIAssistantRequest):
     """Processes natural language into screener filters using LangGraph"""
+    from services.screener_service import screener_service
     from services.screener_agent import ScreenerAgent
+    await screener_service.ensure_market_data_fresh()
     agent = ScreenerAgent()
     result = await agent.run_assistant(body.query)
-    return result
+    return _json_safe({
+        **result,
+        "last_updated": screener_service.last_updated_at,
+    })

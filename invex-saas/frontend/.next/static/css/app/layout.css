@@ -1355,6 +1355,9 @@ video {
 .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgb(255 255 255 / 0.05);
 }
+.self-start {
+  align-self: flex-start;
+}
 .overflow-auto {
   overflow: auto;
 }
@@ -2412,6 +2415,9 @@ section {
 .hover\:border-white\/\[0\.14\]:hover {
   border-color: rgb(255 255 255 / 0.14);
 }
+.hover\:border-\[\#C8F135\]\/40:hover {
+  border-color: rgb(200 241 53 / 0.4);
+}
 .hover\:bg-\[\#111\]\/80:hover {
   background-color: rgb(17 17 17 / 0.8);
 }
@@ -2520,6 +2526,9 @@ section {
 .disabled\:opacity-50:disabled {
   opacity: 0.5;
 }
+.disabled\:opacity-60:disabled {
+  opacity: 0.6;
+}
 .group:hover .group-hover\:border-white\/20 {
   border-color: rgb(255 255 255 / 0.2);
 }
@@ -2572,6 +2581,14 @@ section {
 
   .md\:flex-row {
     flex-direction: row;
+  }
+
+  .md\:items-center {
+    align-items: center;
+  }
+
+  .md\:justify-between {
+    justify-content: space-between;
   }
 
   .md\:divide-x > :not([hidden]) ~ :not([hidden]) {

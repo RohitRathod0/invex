@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { Target, Search, Sparkles, AlertCircle } from 'lucide-react';
+import { Target, Search, Sparkles, AlertCircle, RefreshCw, Clock3 } from 'lucide-react';
 import { ScreenerFilters, ScreenerFilterState } from '@/components/screener/ScreenerFilters';
 import { ScreenerResultsTable, ScreenerAsset } from '@/components/screener/ScreenerResultsTable';
 
@@ -31,8 +31,9 @@ export default function ScreenerPage() {
   const [aiMessage, setAiMessage] = useState("");
   const [aiInsights, setAiInsights] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const fetchScreenerData = useCallback(async (currentFilters: ScreenerFilterState) => {
+  const fetchScreenerData = useCallback(async (currentFilters: ScreenerFilterState, forceRefresh = false) => {
     setIsLoading(true);
     setError(null);
     setAiInsights("");
@@ -46,6 +47,9 @@ export default function ScreenerPage() {
               params.append(k, v);
           }
       });
+      if (forceRefresh) {
+        params.append('refresh', 'true');
+      }
 
       const response = await fetch(`http://127.0.0.1:8000/api/v1/market/screener?${params.toString()}`);
       if (!response.ok) {
@@ -54,6 +58,7 @@ export default function ScreenerPage() {
       const data = await response.json();
       const fetchedAssets = data.results || [];
       setAssets(fetchedAssets);
+      setLastUpdated(data.last_updated || null);
 
       // Fetch AI insights for the top 5
       if (fetchedAssets.length > 0) {
@@ -67,6 +72,20 @@ export default function ScreenerPage() {
       setIsLoading(false);
     }
   }, []);
+
+  const handleManualRefresh = async () => {
+    await fetchScreenerData(filters, true);
+  };
+
+  const formattedLastUpdated = lastUpdated
+    ? new Date(lastUpdated).toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : null;
 
   const fetchAiInsights = async (symbols: string[]) => {
       try {
@@ -200,6 +219,23 @@ export default function ScreenerPage() {
 
         {/* Dynamic Filters */}
         <ScreenerFilters filters={filters} onFilterChange={setFilters} />
+
+        <div className="mt-6 mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Clock3 size={15} className="text-[#C8F135]" />
+            <span>
+              {formattedLastUpdated ? `Prices last refreshed ${formattedLastUpdated}` : 'Fetching latest screener snapshot...'}
+            </span>
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-[#C8F135]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
+            Refresh Prices
+          </button>
+        </div>
 
         {/* Error State */}
         {error && (
