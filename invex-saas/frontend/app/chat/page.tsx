@@ -6,7 +6,7 @@ import {
     AlertTriangle, Zap, BarChart2, Clock, X, ArrowUp
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import ModeSelector, { MODES as PremiumModes } from '../../src/components/chat/ModeSelector';
+import ModeSelector, { MODES as PremiumModes } from '@/components/chat/ModeSelector';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Mode = 'agent-debrief' | 'news-radar' | 'what-if' | 'calm-mode' | 'memory' | 'default';

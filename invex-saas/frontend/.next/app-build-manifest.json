@@ -26,21 +26,6 @@
       "static/chunks/main-app.js",
       "static/chunks/app/dashboard/layout.js"
     ],
-    "/screener/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/screener/page.js"
-    ],
-    "/screener/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/screener/layout.js"
-    ],
-    "/onboarding/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/onboarding/page.js"
-    ],
     "/insider/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -51,15 +36,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/insider/layout.js"
     ],
-    "/earnings/page": [
+    "/security/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/earnings/page.js"
-    ],
-    "/earnings/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/earnings/layout.js"
+      "static/chunks/app/security/page.js"
     ]
   }
 }

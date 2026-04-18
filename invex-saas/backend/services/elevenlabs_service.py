@@ -1,3 +1,4 @@
+# NOTE: Active TTS is murf_service.py. ElevenLabs is a fallback candidate.
 import os
 import logging
 import httpx

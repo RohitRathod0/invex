@@ -1,13 +1,5 @@
 'use client';
 
-/**
- * lib/userContext.tsx
- *
- * React context that holds the user's risk profile (user_context JSON).
- * Wrap the app root with <UserContextProvider> to make useUserContext()
- * available everywhere. Downstream agents (screener, news, strategy) read
- * this to auto-personalise their output.
- */
 
 import React, {
     createContext,
@@ -67,7 +59,7 @@ export function UserContextProvider({ children }: { children: React.ReactNode })
             const userId = user?.id || '0000-user'; // fallback for dev or unauthenticated
 
             // Use the authenticated wrapper instead of raw fetch
-            const res = await apiGet(`http://localhost:8000/api/v1/risk/profile/${userId}`);
+            const res = await apiGet(`/api/v1/risk/profile/${userId}`);
             
             if (res.ok) {
                 const data = await res.json();

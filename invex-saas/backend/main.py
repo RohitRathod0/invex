@@ -10,6 +10,10 @@ from config import get_settings
 from routers import auth_router, agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router, risk_router, insider_router
 from models.database import engine, Base
 from middleware.request_logger import RequestLoggingMiddleware
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -18,10 +22,10 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Starting up Invex SaaS API...")
+    logger.info("Starting up Invex SaaS API...")
     Base.metadata.create_all(bind=engine)
     yield
-    print("Shutting down...")
+    logger.info("Shutting down...")
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -36,12 +40,10 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-from fastapi import Request
-import traceback
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     err = traceback.format_exc()
-    print("GLOBAL EXCEPTION:", err)
+    logger.error("GLOBAL EXCEPTION:", exc_info=exc)
     with open("crash_log.txt", "w") as f:
         f.write(err)
     return JSONResponse(
