@@ -8,11 +8,11 @@ router = APIRouter(prefix="/agents", tags=["agents"])
 limiter = Limiter(key_func=get_remote_address)
 
 @router.post("/run")
-@limiter.limit("3/hour")
+@limiter.limit("20/hour")
 async def run_crew_agent_endpoint(request: Request, body: RunAgentRequest):
     """
     Trigger a CrewAI crew run with a user message.
-    Rate limited: 3 AI report generations per hour per IP.
+    Rate limited: 20 AI report generations per hour per IP.
     """
     result = await run_crew_agent(body.message, body.session_id, body.inputs)
     

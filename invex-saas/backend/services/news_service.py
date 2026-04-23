@@ -37,12 +37,12 @@ import feedparser
 
 
 def _get_news_llm(model_name: str = None):
-    # Use gemma2-9b-it specifically for news to bypass extreme Groq TPM limits on llama
+    # Using LiteLLM strictly for news — keep max_tokens low to save TPM
     if not model_name:
-        model_name = os.environ.get("NEWS_MODEL", "groq/gemma2-9b-it")
+        model_name = os.environ.get("NEWS_MODEL", "groq/llama-3.1-8b-instant")
     elif "/" not in model_name:
         model_name = f"groq/{model_name}"
-    return LLM(model=model_name, max_tokens=2500)
+    return LLM(model=model_name, max_tokens=2048)
 
 
 # ---------------------------------------------------------------------------
@@ -257,13 +257,12 @@ def run_news_analysis() -> dict:
     run_id = f"news_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     try:
+        # Confirmed-active Groq models (as of Apr 2025), ordered by size/token-spend
         NEWS_AGENT_MODELS = [
-            "groq/meta-llama/llama-4-scout-17b-16e-instruct",  # primary
-            "groq/compound-mini",                                # fallback
-            "groq/llama-3.3-70b-versatile",                     # last resort
+            "groq/llama-3.1-8b-instant",       # 6,000 TPM — fast, 128k ctx, reliable
+            "groq/gemma2-9b-it",               # 14,400 TPM — highest free-tier TPM
+            "groq/llama-3.3-70b-versatile",    # 6,000 TPM — larger, last resort
         ]
-
-        import time
         result = None
         error_msg = ""
 
@@ -271,22 +270,13 @@ def run_news_analysis() -> dict:
             try:
                 llm = _get_news_llm(model_name)
 
-                # Agent 1: News Fetcher
+                # ── Agent 1: News Fetcher (backstory trimmed for input-token savings)
                 news_fetcher = Agent(
                     role="Market Intelligence Analyst",
-                    goal=(
-                        "Fetch today's comprehensive market intelligence covering: "
-                        "(1) Global macro — RBI/Fed policy, FII flows, VIX, crude, rupee, bond yields, CPI, GDP; "
-                        "(2) All 16 Indian market sectors; "
-                        "(3) High-impact people — Powell, Sitharaman, RBI Governor, Dimon, Buffett, Musk. "
-                        "Summarize each headline in 1-2 sentences focused on market impact."
-                    ),
+                    goal="Fetch today's top market headlines across macro, all Indian sectors, and key people. Summarise each in 1 sentence.",
                     backstory=(
-                        "Former Bloomberg Intelligence analyst and ex-NSE chief economist with 20 years covering Indian and global markets. "
-                        "You understand every signal that moves markets: Fed rate decisions, FII/DII rotation, monsoon impact on FMCG/agri, "
-                        "USFDA rulings on pharma, OPEC output cuts, RBI intervention on rupee, SEBI regulations, PLI scheme updates, "
-                        "quarterly earnings beats/misses, promoter buying, and statements from key global market movers. "
-                        "You are precise, concise, and laser-focused on what actually matters to Indian investors."
+                        "Ex-Bloomberg analyst with 20 years covering Indian and global markets. "
+                        "Precise and concise — focused only on what moves markets for Indian investors."
                     ),
                     tools=[MarketNewsTool()],
                     llm=llm,
@@ -294,86 +284,55 @@ def run_news_analysis() -> dict:
                     max_iter=2,
                 )
 
-                # Agent 2: Market Decision Agent
+                # ── Agent 2: Decision Agent (backstory trimmed for input-token savings)
                 decision_agent = Agent(
-                    role="Market Impact Strategist",
-                    goal=(
-                        "Convert the 3-layer intelligence brief into precise BUY/SELL/HOLD signals "
-                        "for Indian stocks, gold, mutual funds, and crypto with sector-specific reasoning."
-                    ),
+                    role="Market Strategist",
+                    goal="Convert news into BUY/SELL/HOLD signals for Indian stocks, gold, MFs, and crypto.",
                     backstory=(
-                        "Quantitative strategist from Goldman Sachs India Equities desk with 15 years of cross-asset experience. "
-                        "You deeply understand transmission mechanisms: "
-                        "Fed hikes → dollar surge → FII outflows → Nifty drop; "
-                        "Oil spike → input cost pressure → auto/paint/chemical sector pain; "
-                        "RBI rate cut → banking NIM compression → NBFC/housing finance benefit; "
-                        "USFDA approval → pharma stock re-rating; "
-                        "Monsoon deficit → rural FMCG demand drop → agri commodity spike; "
-                        "Sitharaman capex boost → infra/defence/PSU rally. "
-                        "You issue direct, actionable signals with sector-specific reasoning — no vague disclaimers. "
-                        "CRITICAL INSTRUCTION: Output ONLY the final required format. "
-                        "DO NOT output 'Thought:' or reasoning preamble. Start directly with '## Market News Analysis'."
+                        "Quant strategist with 15 years on Goldman Sachs India desk. "
+                        "Issues direct, actionable signals — no disclaimers. "
+                        "Start output directly with '## Market News Analysis'. No 'Thought:' preamble."
                     ),
                     llm=llm,
                     verbose=True,
                     max_iter=2,
                 )
 
-                # Task 1: Fetch & brief news
+                # ── Task 1: Fetch & summarise (description trimmed)
                 fetch_task = Task(
                     description=(
-                        "Use the Market News Fetcher tool to retrieve today's 3-layer market intelligence. "
-                        "You will receive headlines from: "
-                        "LAYER 1 (Macro): RBI/Fed/FII/VIX/crude/rupee/gold/bond yields/CPI/GDP/GST/monsoon/geopolitics; "
-                        "LAYER 2 (Sectors): banking, IT, pharma, FMCG, auto/EV, energy, metals, real estate, telecom, chemicals, defence, aviation, retail, fintech, insurance, media; "
-                        "LAYER 3 (People): Powell, Dimon, Sitharaman, RBI Governor, Buffett, Musk, Fink. "
-                        "For each of the top 15 headlines, provide: (a) brief headline, (b) 1-sentence market impact summary, (c) which asset class is affected. "
-                        f"Today's date: {datetime.now().strftime('%Y-%m-%d')}"
+                        f"Date: {datetime.now().strftime('%Y-%m-%d')}. "
+                        "Use Market News Fetcher tool. For each headline return: "
+                        "(a) headline, (b) 1-sentence impact, (c) asset class affected."
                     ),
                     expected_output=(
-                        "Numbered list of 15 market intelligence briefs, each with: "
-                        "Headline | 1-sentence impact | Assets affected (Stocks/Gold/Crypto/Bonds/Sector)"
+                        "Numbered list. Each item: Headline | Impact | Asset (Stocks/Gold/Crypto/Bonds/Sector)"
                     ),
                     agent=news_fetcher,
                 )
 
-                # Task 2: Issue signals
+                # ── Task 2: Signals (description trimmed — sector list abbreviated)
                 decision_task = Task(
                     description=(
-                        "Review the news summaries from the previous task. "
-                        "For each of the 15 items, assess impact on the following asset classes and sectors:\n"
-                        "MACRO: Nifty50, Sensex, India VIX, rupee/dollar, bond yields, gold, crude oil, crypto.\n"
-                        "SECTORS: banking (NPA/credit growth), IT (dollar/deal wins), pharma (USFDA), FMCG (monsoon/rural), "
-                        "auto/EV (sales/PLI), energy/oil (OPEC/crude), metals (China demand/LME), real estate (rate cuts), "
-                        "telecom (spectrum/5G), chemicals (input costs), defence (DRDO/HAL contracts), aviation (ATF prices), "
-                        "retail/ecomm (consumption), fintech/NBFC (RBI policy), insurance (LIC), media/OTT (ad revenue).\n"
-                        "PEOPLE IMPACT: Flag any market-moving statement from Powell/Sitharaman/RBI Gov/Dimon/Buffett/Musk.\n\n"
-                        "Then issue the OVERALL PORTFOLIO SIGNAL:\n"
-                        "- Market stance: BULLISH / BEARISH / NEUTRAL\n"
-                        "- Risk level today: LOW / MEDIUM / HIGH\n"
-                        "- Top 3 actionable BUY/SELL/HOLD recommendations with specific asset names and 1-line rationale\n"
-                        "- Timeframe: 1-7 days\n"
-                        "- Alternative signals to watch: any macro data, earnings, or event within next 7 days"
+                        "From the news list, assess impact on: Nifty50, Sensex, VIX, INR, bonds, gold, crude, crypto. "
+                        "Sectors: banking, IT, pharma, FMCG, auto/EV, energy, metals, realty, telecom, chemicals, defence, aviation, retail, fintech, insurance, media. "
+                        "Flag any statement from Powell/Sitharaman/RBI Gov/Dimon/Buffett/Musk. "
+                        "Then output: overall stance (BULLISH/BEARISH/NEUTRAL), risk level (LOW/MEDIUM/HIGH), "
+                        "top 3 BUY/SELL/HOLD calls with asset name + 1-line reason, timeframe 1-7 days."
                     ),
                     expected_output=(
                         "## Market News Analysis\n"
-                        "**Date:** [date] | **Risk Level:** [LOW/MEDIUM/HIGH]\n\n"
-                        "### Key Events & Market Impact\n"
-                        "1. [Headline]\n"
-                        "[1-sentence impact]\n"
-                        "- Stocks: [Positive/Negative/Neutral] | Sector: [sector name] | Gold: [P/N/N] | Crypto: [P/N/N]\n"
-                        "\n"
-                        "2. [Headline]\n"
-                        "(repeat for all 15 events)\n\n"
-                        "### Overall Signal: [BULLISH/BEARISH/NEUTRAL]\n\n"
-                        "### Actionable Recommendations\n"
-                        "1. [BUY/SELL/HOLD] [Specific Asset/Sector ETF/Stock] — [1-line reason]\n"
-                        "2. [BUY/SELL/HOLD] [Specific Asset/Sector ETF/Stock] — [1-line reason]\n"
-                        "3. [BUY/SELL/HOLD] [Specific Asset/Sector ETF/Stock] — [1-line reason]\n\n"
-                        "### Key Alerts\n"
-                        "[Any market-mover person statement or high-impact event to watch]\n\n"
-                        "### Why This Matters\n"
-                        "[2-3 sentence synthesis: macro + sector + people signals combined]"
+                        "**Date:** [date] | **Risk:** [LOW/MEDIUM/HIGH] | **Stance:** [BULLISH/BEARISH/NEUTRAL]\n\n"
+                        "### Key Events\n"
+                        "[numbered list: headline → impact → Stocks/Gold/Crypto signal]\n\n"
+                        "### Recommendations\n"
+                        "1. [BUY/SELL/HOLD] [Asset] — [reason]\n"
+                        "2. [BUY/SELL/HOLD] [Asset] — [reason]\n"
+                        "3. [BUY/SELL/HOLD] [Asset] — [reason]\n\n"
+                        "### Alerts\n"
+                        "[Key person statements or upcoming events]\n\n"
+                        "### Summary\n"
+                        "[2-3 sentence synthesis]"
                     ),
                     agent=decision_agent,
                     context=[fetch_task],
@@ -385,7 +344,7 @@ def run_news_analysis() -> dict:
                     process=Process.sequential,
                     memory=False,
                     verbose=True,
-                    max_rpm=15,
+                    max_rpm=10,
                 )
 
                 print(f"[News Agent] Attempting execution with model: {model_name}")
@@ -393,8 +352,12 @@ def run_news_analysis() -> dict:
                 break
             except Exception as e:
                 err_str = str(e).lower()
-                if "429" in err_str or "rate limit" in err_str:
-                    print(f"[News Agent] Rate limited on {model_name}. Falling back...")
+                if any(k in err_str for k in (
+                    "429", "rate limit", "token", "context_length", "too large",
+                    "decommissioned", "invalid_request", "not supported",
+                    "does not exist", "model_not_found", "not found"
+                )):
+                    print(f"[News Agent] Model error on {model_name}: {err_str[:120]}. Falling back...")
                     error_msg = err_str
                     continue
                 else:

@@ -20,10 +20,13 @@ class Settings(BaseSettings):
     INVEX_DYNAMODB_TABLE_RUNS: str = "invex-runs"
     INVEX_DYNAMODB_TABLE_DOCUMENTS: str = "invex-documents"
     
-    # CrewAI / LLM
+    # CrewAI / LLM keys
     OPENAI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
     ELEVENLABS_API_KEY: str | None = None
+    MISTRAL_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
 
     # Security
     SECURITY_SECRET: str = "change-me-in-production-please"  # Used for Fernet key derivation
@@ -50,3 +53,18 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     return Settings()
+
+
+def push_llm_keys_to_environ() -> None:
+    """Push LLM API keys from .env into os.environ so inline crew_core imports can read them."""
+    s = get_settings()
+    key_map = {
+        "MISTRAL_API_KEY": s.MISTRAL_API_KEY,
+        "GROQ_API_KEY":    s.GROQ_API_KEY,
+        "GEMINI_API_KEY":  s.GEMINI_API_KEY,
+        "GOOGLE_API_KEY":  s.GOOGLE_API_KEY,
+        "OPENAI_API_KEY":  s.OPENAI_API_KEY,
+    }
+    for k, v in key_map.items():
+        if v and not os.environ.get(k):
+            os.environ[k] = v

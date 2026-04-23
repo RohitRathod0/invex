@@ -62,7 +62,15 @@ async def generation_node(state: EngineState) -> Dict[str, Any]:
     inputs = state["inputs"]
     market_data = state["market_data"]
 
-    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.2)
+    # Use Mistral ministral-8b-2512 for fast mode — 50k TPM, ideal for quick analysis
+    # Models available: ministral-8b-2512, mistral-large-2512, pixtral-large-2411, voxtral-mini-2507
+    from langchain_mistralai import ChatMistralAI
+    import os
+    llm = ChatMistralAI(
+        model="ministral-8b-2512",
+        api_key=os.environ.get("MISTRAL_API_KEY"),
+        temperature=0.2
+    )
     structured_llm = llm.with_structured_output(PortfolioReport)
 
     prompt = ChatPromptTemplate.from_messages([

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Brain, Newspaper, TrendingUp, ShieldCheck, BookOpen,
     Send, RefreshCw, Mic, ChevronRight, User, Bot,
-    AlertTriangle, Zap, BarChart2, Clock, X, ArrowUp
+    AlertTriangle, Zap, BarChart2, Clock, X, ArrowUp, Plus, MessageSquare, Trash2
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ModeSelector, { MODES as PremiumModes } from '@/components/chat/ModeSelector';
@@ -41,6 +41,14 @@ interface UserMemory {
     lastUpdated: string;
 }
 
+interface ChatSession {
+    id: string;
+    title: string;
+    messages: Message[];
+    createdAt: string;
+    lastMessageAt: string;
+}
+
 // ─── Mode config ──────────────────────────────────────────────────────────────
 const MODES: { id: Mode; label: string; icon: React.ElementType; color: string; desc: string; starters: string[] }[] = [
     {
@@ -72,7 +80,8 @@ const MODES: { id: Mode; label: string; icon: React.ElementType; color: string; 
 
 // ─── Memory helpers ───────────────────────────────────────────────────────────
 const MEM_KEY = 'invex_user_memory';
-const HIST_KEY = 'invex_chat_history';
+const SESSIONS_KEY = 'invex_chat_sessions';
+const ACTIVE_SID_KEY = 'invex_active_session';
 
 function loadMemory(): UserMemory {
     try {
@@ -86,18 +95,57 @@ function saveMemory(m: UserMemory) {
     localStorage.setItem(MEM_KEY, JSON.stringify({ ...m, lastUpdated: new Date().toISOString() }));
 }
 
-function loadHistory(): Message[] {
+// ─── Session helpers ──────────────────────────────────────────────────────────
+function parseSessions(raw: string): ChatSession[] {
+    return (JSON.parse(raw) as ChatSession[]).map(s => ({
+        ...s, messages: s.messages.map(m => ({ ...m, timestamp: new Date(m.timestamp) }))
+    }));
+}
+
+function pruneOldSessions(sessions: ChatSession[]): ChatSession[] {
+    const cutoff = Date.now() - 5 * 24 * 60 * 60 * 1000;
+    return sessions.filter(s => new Date(s.lastMessageAt).getTime() >= cutoff);
+}
+
+function loadSessions(): ChatSession[] {
     try {
-        const raw = localStorage.getItem(HIST_KEY);
+        const raw = localStorage.getItem(SESSIONS_KEY);
         if (!raw) return [];
-        const msgs = JSON.parse(raw) as Message[];
-        return msgs.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+        return pruneOldSessions(parseSessions(raw));
     } catch { return []; }
 }
 
-function saveHistory(msgs: Message[]) {
-    // Keep last 50
-    localStorage.setItem(HIST_KEY, JSON.stringify(msgs.slice(-50)));
+function saveSessions(sessions: ChatSession[]) {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+function makeSession(welcomeName: string): ChatSession {
+    const id = Date.now().toString();
+    const now = new Date().toISOString();
+    return {
+        id, title: 'New Chat',
+        messages: [{ id: 'w-' + id, role: 'ai', content: `👋 Hi ${welcomeName.split(' ')[0]}, I am your AI investment agent! What do you want to know more about?`, mode: 'default', type: 'text', timestamp: new Date() }],
+        createdAt: now, lastMessageAt: now,
+    };
+}
+
+function getDayLabel(dateStr: string): string {
+    const d = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+    if (d === 0) return 'Today';
+    if (d === 1) return 'Yesterday';
+    return `${d} days ago`;
+}
+
+function groupSessions(sessions: ChatSession[]): { label: string; items: ChatSession[] }[] {
+    const map = new Map<string, ChatSession[]>();
+    const order: string[] = [];
+    [...sessions].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+        .forEach(s => {
+            const g = getDayLabel(s.lastMessageAt);
+            if (!map.has(g)) { map.set(g, []); order.push(g); }
+            map.get(g)!.push(s);
+        });
+    return order.map(l => ({ label: l, items: map.get(l)! }));
 }
 
 // ─── What-If Chart Component ──────────────────────────────────────────────────
@@ -214,6 +262,8 @@ function MessageBubble({ msg, mode }: { msg: Message; mode: Mode }) {
 export default function ChatPage() {
     const [mode, setMode] = useState<Mode>('default');
     const [messages, setMessages] = useState<Message[]>([]);
+    const [sessions, setSessions] = useState<ChatSession[]>([]);
+    const [activeSessionId, setActiveSessionId] = useState<string>('');
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
     const [memory, setMemory] = useState<UserMemory | null>(null);
@@ -226,27 +276,69 @@ export default function ChatPage() {
     useEffect(() => {
         const mem = loadMemory();
         setMemory(mem);
-        const hist = loadHistory();
-        if (hist.length) {
-            setMessages(hist);
-            // Restore last mode
-            const lastAI = [...hist].reverse().find(m => m.role === 'ai');
-            if (lastAI) setMode(lastAI.mode);
-        } else {
-            // Welcome message
-            const welcome: Message = {
-                id: 'welcome',
-                role: 'ai',
-                content: `👋 Hi ${mem.name.split(' ')[0]}, I am your AI investment agent! What do you want to know more about?`,
-                mode: 'default', type: 'text', timestamp: new Date(),
-            };
-            setMessages([welcome]);
+        let loaded = loadSessions();
+        if (loaded.length === 0) {
+            const s = makeSession(mem.name);
+            loaded = [s];
+            saveSessions(loaded);
         }
+        const lastId = localStorage.getItem(ACTIVE_SID_KEY) || loaded[0].id;
+        const active = loaded.find(s => s.id === lastId) || loaded[0];
+        setSessions(loaded);
+        setActiveSessionId(active.id);
+        setMessages(active.messages);
+        const lastAI = [...active.messages].reverse().find(m => m.role === 'ai');
+        if (lastAI) setMode(lastAI.mode);
     }, []);
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    const switchSession = (id: string) => {
+        const s = sessions.find(x => x.id === id);
+        if (!s) return;
+        setActiveSessionId(id);
+        setMessages(s.messages);
+        localStorage.setItem(ACTIVE_SID_KEY, id);
+        const lastAI = [...s.messages].reverse().find(m => m.role === 'ai');
+        if (lastAI) setMode(lastAI.mode); else setMode('default');
+        setSuggestions([]);
+    };
+
+    const startNewChat = () => {
+        if (!memory) return;
+        const s = makeSession(memory.name);
+        const updated = [s, ...sessions];
+        setSessions(updated);
+        saveSessions(updated);
+        setActiveSessionId(s.id);
+        setMessages(s.messages);
+        localStorage.setItem(ACTIVE_SID_KEY, s.id);
+        setMode('default');
+        setSuggestions([]);
+    };
+
+    const deleteSession = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const updated = sessions.filter(s => s.id !== id);
+        saveSessions(updated);
+        if (activeSessionId === id) {
+            if (updated.length > 0) { switchSession(updated[0].id); setSessions(updated); }
+            else { const s = makeSession(memory?.name || 'Investor'); const ns = [s]; saveSessions(ns); setSessions(ns); setActiveSessionId(s.id); setMessages(s.messages); }
+        } else { setSessions(updated); }
+    };
+
+    const updateActiveSession = (msgs: Message[]) => {
+        const firstUser = msgs.find(m => m.role === 'user');
+        const title = firstUser ? firstUser.content.slice(0, 38) + (firstUser.content.length > 38 ? '...' : '') : 'New Chat';
+        const now = new Date().toISOString();
+        setSessions(prev => {
+            const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: msgs, title, lastMessageAt: now } : s);
+            saveSessions(updated);
+            return updated;
+        });
+    };
 
     const send = useCallback(async (text?: string) => {
         const msg = text || input.trim();
@@ -258,7 +350,6 @@ export default function ChatPage() {
         const newMsgs = [...messages, userMsg];
         setMessages(newMsgs);
 
-        // Update memory — track question
         if (memory) {
             const updated = { ...memory, pastQuestions: [...memory.pastQuestions.slice(-9), msg] };
             saveMemory(updated);
@@ -270,57 +361,35 @@ export default function ChatPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: msg,
-                    mode,
-                    context: { analysisReport: analysisCtx, userName: memory?.name, sessionId: null },
+                    message: msg, mode,
+                    context: { analysisReport: analysisCtx, userName: memory?.name, sessionId: activeSessionId },
                     memoryContext: memory ? `Name: ${memory.name}, Risk: ${memory.riskProfile}, Goal: ${memory.goals}, Past questions: ${memory.pastQuestions.slice(-5).join('; ')}` : '',
                 }),
             });
-
             const data = await res.json();
             const effectiveMode = data.mode || mode;
             if (data.panicTriggered) setMode('calm-mode');
-
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'ai',
-                content: data.reply || 'No response received.',
-                mode: effectiveMode,
-                type: data.type || 'text',
-                chartData: data.chartData,
-                panicTriggered: data.panicTriggered,
-                timestamp: new Date(),
-            };
-
-            const updated = [...newMsgs, aiMsg];
-            setMessages(updated);
-            saveHistory(updated);
+            const aiMsg: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: data.reply || 'No response received.', mode: effectiveMode, type: data.type || 'text', chartData: data.chartData, panicTriggered: data.panicTriggered, timestamp: new Date() };
+            const finalMsgs = [...newMsgs, aiMsg];
+            setMessages(finalMsgs);
+            updateActiveSession(finalMsgs);
             if (data.suggestions) setSuggestions(data.suggestions);
-
         } catch {
-            const errMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'ai',
-                content: "⚠️ Connection issue. Please make sure the backend is running on port 8000.",
-                mode, type: 'text', timestamp: new Date(),
-            };
-            setMessages(prev => [...prev, errMsg]);
+            const errMsg: Message = { id: (Date.now() + 1).toString(), role: 'ai', content: "⚠️ Connection issue. Please make sure the backend is running on port 8000.", mode, type: 'text', timestamp: new Date() };
+            const finalMsgs = [...newMsgs, errMsg];
+            setMessages(finalMsgs);
+            updateActiveSession(finalMsgs);
         } finally {
             setSending(false);
         }
-    }, [input, mode, messages, memory, analysisCtx, sending]);
+    }, [input, mode, messages, memory, analysisCtx, sending, activeSessionId]);
 
     const handleKey = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     };
 
-    const clearHistory = () => {
-        localStorage.removeItem(HIST_KEY);
-        setMessages([]);
-        window.location.reload();
-    };
-
     const activeCfg = MODES.find(m => m.id === mode);
+    const grouped = groupSessions(sessions);
 
     // Market mini-tickers (static for now; would fetch live)
     const tickers = [
@@ -334,13 +403,42 @@ export default function ChatPage() {
         <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', color: '#fff' }}>
 
             {/* ── LEFT PANEL (260px) ── */}
-            <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', background: '#0D0D0D', overflowY: 'auto' }}>
+            <div style={{ width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.07)', display: 'flex', flexDirection: 'column', background: '#0D0D0D' }}>
 
+                {/* Header + New Chat */}
+                <div style={{ padding: '16px 14px 10px', flexShrink: 0 }}>
+                    <button onClick={startNewChat} style={{ width: '100%', background: 'rgba(200,241,53,0.08)', border: '1px solid rgba(200,241,53,0.2)', borderRadius: '10px', padding: '9px 14px', color: '#C8F135', cursor: 'pointer', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', transition: 'all 0.15s' }}>
+                        <Plus size={14} /> New Chat
+                    </button>
+                </div>
 
+                {/* Session list — scrollable */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
+                    {grouped.length === 0 && (
+                        <p style={{ fontSize: '11px', color: '#374151', textAlign: 'center', padding: '20px 0' }}>No conversations yet</p>
+                    )}
+                    {grouped.map(group => (
+                        <div key={group.label} style={{ marginBottom: '12px' }}>
+                            <p style={{ fontSize: '10px', color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '6px 8px 4px', fontWeight: 600 }}>{group.label}</p>
+                            {group.items.map(s => (
+                                <div key={s.id}
+                                    onClick={() => switchSession(s.id)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '10px', cursor: 'pointer', background: s.id === activeSessionId ? 'rgba(255,255,255,0.07)' : 'transparent', border: s.id === activeSessionId ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent', marginBottom: '2px', transition: 'all 0.15s', group: 'hover' }}
+                                >
+                                    <MessageSquare size={13} color={s.id === activeSessionId ? '#C8F135' : '#4B5563'} style={{ flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontSize: '12px', color: s.id === activeSessionId ? '#E5E7EB' : '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</span>
+                                    <button onClick={(e) => deleteSession(s.id, e)} style={{ background: 'none', border: 'none', color: '#374151', cursor: 'pointer', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', opacity: 0.6 }}>
+                                        <Trash2 size={11} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
 
                 {/* Memory card */}
                 {memory && (
-                    <div style={{ margin: '0 14px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '14px' }}>
+                    <div style={{ margin: '0 14px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '14px', flexShrink: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                             <span style={{ fontSize: '11px', color: '#F59E0B', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <BookOpen size={11} /> Memory
@@ -358,7 +456,7 @@ export default function ChatPage() {
 
                 {/* Memory Edit panel */}
                 {showMemoryEdit && memory && (
-                    <div style={{ margin: '0 14px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '14px' }}>
+                    <div style={{ margin: '0 14px 12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '14px', flexShrink: 0 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                             <p style={{ fontSize: '12px', fontWeight: 600, color: '#fff' }}>Edit Profile</p>
                             <button onClick={() => setShowMemoryEdit(false)} style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer' }}><X size={14} /></button>
@@ -378,13 +476,6 @@ export default function ChatPage() {
                         ))}
                     </div>
                 )}
-
-                {/* Clear history */}
-                <div style={{ marginTop: 'auto', padding: '12px 14px' }}>
-                    <button onClick={clearHistory} style={{ width: '100%', background: 'none', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '8px', color: '#374151', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <RefreshCw size={12} /> Clear history
-                    </button>
-                </div>
             </div>
 
             {/* ── CENTER PANEL ── */}

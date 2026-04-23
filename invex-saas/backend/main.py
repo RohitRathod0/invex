@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from config import get_settings
+from config import get_settings, push_llm_keys_to_environ
 from routers import auth_router, agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, security_router, chat_router, risk_router, insider_router
 from models.database import engine, Base
 from middleware.request_logger import RequestLoggingMiddleware
@@ -16,6 +16,10 @@ import traceback
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# Push all LLM API keys from .env into os.environ so crew_core
+# modules (fast_engine, crew) can reach them via os.environ.get(...)
+push_llm_keys_to_environ()
 
 # ── Rate limiter (shared instance, imported by routers) ─────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])

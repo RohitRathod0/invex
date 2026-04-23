@@ -1,4 +1,4 @@
-import json
+import os
 import logging
 from typing import TypedDict, Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
@@ -25,20 +25,24 @@ class PortfolioAnalystState(TypedDict):
 
 class PortfolioAnalystAgent:
     def __init__(self):
-        # We define a fast LLM and a deep LLM.
+        groq_key = settings.GROQ_API_KEY or os.environ.get("GROQ_API_KEY")
+
+        # Fast/lightweight model — used for evaluation step (low token spend)
         self.fast_llm = ChatGroq(
-            api_key=settings.GROQ_API_KEY, 
-            model="llama-3.1-8b-instant", 
-            temperature=0
+            model="llama-3.1-8b-instant",
+            api_key=groq_key,
+            temperature=0,
         )
-        
-        # We use a highly capable model as primary with a fallback mechanism
-        self.primary_llm = ChatGroq(
-            api_key=settings.GROQ_API_KEY, 
-            model="llama-3.3-70b-versatile", 
-            temperature=0.2
-        ).with_fallbacks([self.fast_llm])
-        
+
+        # Primary model — used for the main analysis (better reasoning)
+        _primary = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            api_key=groq_key,
+            temperature=0.2,
+        )
+        # Fallback: if primary hits rate/token limit, drop to fast model
+        self.primary_llm = _primary.with_fallbacks([self.fast_llm])
+
         self.eval_llm = self.fast_llm
         
         # Tools

@@ -81,7 +81,12 @@ class ChatEngine:
     """
 
     def __init__(self):
-        self.llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.5)
+        import os
+        self.llm = ChatGroq(
+            model="llama-3.3-70b-versatile",
+            api_key=os.environ.get("GROQ_API_KEY"),
+            temperature=0.5
+        )
         self.agent_executor = create_react_agent(
             self.llm,
             AGENT_TOOLS,
