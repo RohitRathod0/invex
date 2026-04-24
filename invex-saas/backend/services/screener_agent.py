@@ -1,11 +1,13 @@
 import json
 from typing import List, Dict, Any, Optional, TypedDict
 from groq import AsyncGroq
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
 from config import get_settings
 from services.screener_service import screener_service
+from utils.resilient_llm import get_langchain_llm
+from utils.rate_limiter import screener_limiter
+import os
 
 settings = get_settings()
 
@@ -21,8 +23,10 @@ class ScreenerAgentState(TypedDict):
 class ScreenerAgent:
     def __init__(self):
         self.groq_client = AsyncGroq(api_key=settings.GROQ_API_KEY)
-        self.llm_fast = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
-        self.llm_deep = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.2)
+        # screener_group: Groq llama-3.1-8b-instant primary → Gemini Flash fallback
+        # Lightweight filter-extraction and HITL-check calls.
+        self.llm_fast = get_langchain_llm("screener_group")
+        self.llm_deep = get_langchain_llm("screener_group")  # same group; insights call
         self.app = self._build_graph()
 
     def _build_graph(self):
@@ -126,6 +130,8 @@ class ScreenerAgent:
         return {"attempt": state["attempt"] + 1}
 
     async def run_assistant(self, query: str) -> dict:
+        # ── Rate-limit gate ─────────────────────────────────────────────
+        await screener_limiter.acquire(estimated_tokens=250)
         initial_state = {
             "query": query,
             "is_ambiguous": False,

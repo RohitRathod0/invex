@@ -1,6 +1,5 @@
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, Process, Task, LLM as CrewLLM
 import os
-from crewai.project import CrewBase, agent, crew, task
 from crewai.project import CrewBase, agent, crew, task
 from invex.tools import (
     StockPriceTool, TopStocksTool, MutualFundTool,
@@ -20,71 +19,87 @@ def _is_limit_error(e: Exception) -> bool:
 
 
 # ── Provider factory helpers ──────────────────────────────────────────────────
-def _groq_llm():
-    """Groq: fast, used for lighter data-gathering agents (macro + market)."""
-    from langchain_groq import ChatGroq
-    return ChatGroq(
-        model="llama-3.3-70b-versatile",
-        api_key=os.environ.get("GROQ_API_KEY"),
+# CRITICAL FIX: Use CrewAI's native LLM class (which talks directly to LiteLLM),
+# NOT langchain_google_genai.ChatGoogleGenerativeAI.
+#
+# langchain_google_genai sends model names as "models/gemini-1.5-flash" (Google API format),
+# but LiteLLM (used by CrewAI internally) expects "gemini/gemini-2.0-flash" (provider/model format).
+# That mismatch is the root cause of: "LLM Provider NOT provided. You passed model=models/gemini-1.5-flash"
+#
+# CrewAI's LLM class passes the model string through to LiteLLM verbatim — no mangling.
+
+def _gemini_llm() -> CrewLLM:
+    """Gemini 2.0 Flash — primary for ALL /analysis page agents. 1M TPM free tier."""
+    return CrewLLM(
+        model="gemini/gemini-2.0-flash",
+        api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
         temperature=0.2,
+        max_tokens=8192,
     )
 
-def _gemini_llm():
-    """Gemini: mid-tier, used for analysis agents (alternatives + optimizer)."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    return ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",          # 1M token context, generous free quota
-        google_api_key=os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"),
-        temperature=0.2,
-        max_output_tokens=4096,
-    )
-
-def _mistral_llm():
-    """Mistral: final synthesis agent (report writer) — large context, high quality."""
-    from langchain_mistralai import ChatMistralAI
-    return ChatMistralAI(
-        model="mistral-large-2512",
+def _mistral_llm() -> CrewLLM:
+    """Mistral large-latest — deep synthesis fallback."""
+    return CrewLLM(
+        model="mistral/mistral-large-latest",
         api_key=os.environ.get("MISTRAL_API_KEY"),
         temperature=0.2,
         max_tokens=8192,
     )
 
-def _mistral_fast_llm():
-    """Mistral small — fallback within Mistral tier."""
-    from langchain_mistralai import ChatMistralAI
-    return ChatMistralAI(
-        model="ministral-8b-2512",
+def _mistral_fast_llm() -> CrewLLM:
+    """Mistral small-latest — lighter/cheaper fallback."""
+    return CrewLLM(
+        model="mistral/mistral-small-latest",
         api_key=os.environ.get("MISTRAL_API_KEY"),
         temperature=0.2,
         max_tokens=4096,
     )
 
-
-# ── Relay LLM builder — returns LLM with .with_fallbacks() chain ─────────────
-def _relay_llm_for(tier: str):
+def _groq_llm() -> CrewLLM:
+    """Groq llama-3.1-8b — emergency last resort only.
+    news_service.py keeps Groq as PRIMARY so this pool is untouched during analysis.
     """
-    Returns a LangChain LLM wired as a relay fallback chain.
+    return CrewLLM(
+        model="groq/llama-3.1-8b-instant",
+        api_key=os.environ.get("GROQ_API_KEY"),
+        temperature=0.2,
+        max_tokens=2048,
+    )
 
-    Tier assignment (this is the 'continue' relay the user asked for):
-      'groq'    → macro_economist + market_analyst
-                  (Groq primary → Gemini fallback → Mistral last resort)
-      'gemini'  → alternative_assets_analyst + portfolio_optimizer
-                  (Gemini primary → Mistral fallback)
-      'mistral' → report_writer
-                  (Mistral primary → Gemini fallback)
 
-    CrewAI's sequential process passes each agent's output as context to
-    the next agent, so the 'relay' is both across errors AND across providers.
+# ── Runtime provider override ─────────────────────────────────────────────────
+# deep_engine sets this before each retry attempt so all agents in the crew
+# automatically use the fallback provider without recreating the Invex class.
+_OVERRIDE_LLM: "CrewLLM | None" = None
+
+# ── SSE progress callback ─────────────────────────────────────────────────────
+# Set by deep_engine before kickoff. Called (from background thread) whenever
+# a CrewAI task completes so the SSE endpoint can push it to the browser.
+_PROGRESS_CALLBACK = None   # Callable[[dict], None] | None
+
+def _fire_progress(event: dict):
+    """Thread-safe: call _PROGRESS_CALLBACK if set."""
+    cb = _PROGRESS_CALLBACK
+    if cb is not None:
+        try:
+            cb(event)
+        except Exception:
+            pass   # never let a progress error kill the crew run
+
+# ── Analysis-group LLM factory ────────────────────────────────────────────────
+def _relay_llm_for(tier: str = "analysis") -> CrewLLM:
     """
-    if tier == "groq":
-        primary = _groq_llm()
-        return primary.with_fallbacks([_gemini_llm(), _mistral_fast_llm()])
-    elif tier == "gemini":
-        primary = _gemini_llm()
-        return primary.with_fallbacks([_mistral_llm()])
-    else:  # mistral
-        primary = _mistral_llm()
-        return primary.with_fallbacks([_gemini_llm()])
+    Returns the primary CrewAI LLM for /analysis page agents.
+
+    PRIMARY: Mistral large-latest (user has paid Mistral subscription, stable quota).
+    FALLBACK: Gemini 2.0 Flash (kept as fallback in case Mistral hits limits).
+
+    All analysis agents share the same group so they NEVER compete with
+    news_group (Groq primary) for the same quota pool.
+    """
+    if _OVERRIDE_LLM is not None:
+        return _OVERRIDE_LLM
+    return _mistral_llm()   # Mistral is now primary
 
 
 @CrewBase
@@ -106,7 +121,6 @@ class Invex():
 
     @agent
     def market_analyst(self) -> Agent:
-        # Tier 1: Groq (fast data-gathering) → Gemini → Mistral
         return Agent(
             config=self.agents_config['market_analyst'],
             llm=_relay_llm_for('groq'),
@@ -122,7 +136,6 @@ class Invex():
 
     @agent
     def macro_economist(self) -> Agent:
-        # Tier 1: Groq (fast macro data) → Gemini → Mistral
         return Agent(
             config=self.agents_config['macro_economist'],
             llm=_relay_llm_for('groq'),
@@ -137,7 +150,6 @@ class Invex():
 
     @agent
     def alternative_assets_analyst(self) -> Agent:
-        # Tier 2: Gemini (receives Groq context, does deeper analysis) → Mistral
         return Agent(
             config=self.agents_config['alternative_assets_analyst'],
             llm=_relay_llm_for('gemini'),
@@ -153,7 +165,6 @@ class Invex():
 
     @agent
     def portfolio_optimizer(self) -> Agent:
-        # Tier 2: Gemini (receives all prior context, optimizes allocation) → Mistral
         return Agent(
             config=self.agents_config['portfolio_optimizer'],
             llm=_relay_llm_for('gemini'),
@@ -164,7 +175,6 @@ class Invex():
 
     @agent
     def report_writer(self) -> Agent:
-        # Tier 3: Mistral (receives ALL prior context, writes final report) → Gemini
         return Agent(
             config=self.agents_config['report_writer'],
             llm=_relay_llm_for('mistral'),
@@ -175,36 +185,39 @@ class Invex():
 
     @task
     def analyze_markets(self) -> Task:
-        return Task(
-            config=self.tasks_config['analyze_markets']
-        )
+        def _cb(output):
+            _fire_progress({"type": "task_done", "agent": "Market Analyst", "emoji": "📊",
+                            "summary": str(output.raw)[:400] if hasattr(output, 'raw') else str(output)[:400]})
+        return Task(config=self.tasks_config['analyze_markets'], callback=_cb)
 
     @task
     def analyze_economy(self) -> Task:
-        return Task(
-            config=self.tasks_config['analyze_economy']
-        )
+        def _cb(output):
+            _fire_progress({"type": "task_done", "agent": "Macro Economist", "emoji": "🌐",
+                            "summary": str(output.raw)[:400] if hasattr(output, 'raw') else str(output)[:400]})
+        return Task(config=self.tasks_config['analyze_economy'], callback=_cb)
 
     @task
     def analyze_alternatives(self) -> Task:
-        return Task(
-            config=self.tasks_config['analyze_alternatives']
-        )
+        def _cb(output):
+            _fire_progress({"type": "task_done", "agent": "Alternatives Analyst", "emoji": "🥇",
+                            "summary": str(output.raw)[:400] if hasattr(output, 'raw') else str(output)[:400]})
+        return Task(config=self.tasks_config['analyze_alternatives'], callback=_cb)
 
     @task
     def optimize_portfolio(self) -> Task:
-        return Task(
-            config=self.tasks_config['optimize_portfolio']
-        )
+        def _cb(output):
+            _fire_progress({"type": "task_done", "agent": "Portfolio Optimizer", "emoji": "⚖️",
+                            "summary": str(output.raw)[:400] if hasattr(output, 'raw') else str(output)[:400]})
+        return Task(config=self.tasks_config['optimize_portfolio'], callback=_cb)
 
     @task
     def generate_report(self) -> Task:
         from invex.schemas import PortfolioReport
-        return Task(
-            config=self.tasks_config['generate_report'],
-            output_json=PortfolioReport
-            # Removed output_file since we want JSON text to return to the backend
-        )
+        def _cb(output):
+            _fire_progress({"type": "task_done", "agent": "Report Writer", "emoji": "📝",
+                            "summary": str(output.raw)[:400] if hasattr(output, 'raw') else str(output)[:400]})
+        return Task(config=self.tasks_config['generate_report'], output_json=PortfolioReport, callback=_cb)
 
     @crew
     def crew(self) -> Crew:

@@ -64,12 +64,28 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
     asset_preferences = {'stocks': True, 'mutual_funds': True, 'gold': True, 'crypto': True}
 
     if inputs:
-        capital = float(inputs.get('capital_amount', capital))
+        # Support both key variants sent by the frontend
+        capital = float(inputs.get('capital_amount') or inputs.get('investment_amount') or capital)
         risk_pct = int(inputs.get('risk_percentage', risk_pct))
         duration = int(inputs.get('duration_years', duration))
         expected_returns = float(inputs.get('expected_returns', expected_returns))
+
+        # Map 'asset_classes' list (frontend) → asset_preferences dict (crew)
         if 'asset_preferences' in inputs:
             asset_preferences = inputs['asset_preferences']
+        elif 'asset_classes' in inputs:
+            classes = [c.lower() for c in inputs['asset_classes']]
+            asset_preferences = {
+                'stocks':       any(k in ' '.join(classes) for k in ['stock', 'nse', 'bse', 'equity']),
+                'mutual_funds': any(k in ' '.join(classes) for k in ['mutual', 'fund', 'mf']),
+                'gold':         any(k in ' '.join(classes) for k in ['gold', 'commodit']),
+                'crypto':       any(k in ' '.join(classes) for k in ['crypto', 'bitcoin', 'btc']),
+            }
+
+        # Map risk_tolerance string to percentage if only string provided
+        if 'risk_tolerance' in inputs and not inputs.get('risk_percentage'):
+            rt = inputs['risk_tolerance'].lower()
+            risk_pct = 25 if 'conserv' in rt else 75 if 'aggress' in rt else 50
 
     risk_tolerance_text = _risk_percentage_to_text(risk_pct)
 
@@ -109,6 +125,7 @@ async def run_crew_agent(message: str, session_id: str, inputs: Optional[Dict[st
             "status": result.get("status", "completed"),
             "execution_mode": result.get("mode", "unknown"),
             "execution_time": result.get("execution_time", 0.0),
+            "model_used": result.get("model_used"),
             "result": parsed_result,
             "created_at": datetime.now().isoformat()
         }

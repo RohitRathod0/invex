@@ -71,33 +71,149 @@ export default function AnalysisPage() {
     const run = async () => {
         if (!amount || assets.length === 0) return;
         setRunning(true); setResult(null); setError(null);
-        setLogs([{ t: new Date().toLocaleTimeString(), msg: '🚀 Initializing Invex AI crew...', kind: 'info' }]);
+        setLogs([{ t: new Date().toLocaleTimeString(), msg: '🚀 Initializing Invex AI agents...', kind: 'info' }]);
+
+        const assetPrefs = {
+            stocks:       assets.some(a => /stock|nse|bse|equity/i.test(a)),
+            mutual_funds: assets.some(a => /mutual|fund/i.test(a)),
+            gold:         assets.some(a => /gold|commodit/i.test(a)),
+            crypto:       assets.some(a => /crypto|bitcoin/i.test(a)),
+        };
+
         try {
+            // Create session if needed
             let sid = sessionId;
             if (!sid) {
                 addLog('📋 Creating session...', 'info');
-                const sr = await fetch('/api/v1/sessions/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_name: 'Invex User' }) });
+                const sr = await fetch('/api/v1/sessions/', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_name: 'Invex User' }),
+                });
                 if (!sr.ok) throw new Error(`Session failed: ${sr.status}`);
-                const sd = await sr.json(); sid = sd.session_id; setSessionId(sid ?? null);
+                const sd = await sr.json();
+                sid = sd.session_id; setSessionId(sid ?? null);
                 addLog(`✅ Session: ${sid?.slice(0, 8)}...`, 'done');
             }
-            addLog('🤖 Market Analyst scanning NSE/BSE...', 'think');
-            addLog('🌍 Macro Economist analyzing RBI + global...', 'think');
-            const rr = await fetch('/api/v1/agents/run', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: sid, message: buildPrompt(), inputs: { investment_amount: +amount, risk_tolerance: risk, investment_goal: goal, time_horizon: horizon, asset_classes: assets, age: +age, annual_income: +income } }),
+
+            // ── SSE streaming fetch ──────────────────────────────────────────
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 900_000); // 15 min max
+
+            // Bypass Next.js API rewrite to prevent stream buffering in development
+            const backendUrl = process.env.NODE_ENV === 'development' 
+                ? 'http://localhost:8000/api/v1/agents/run/stream'
+                : '/api/v1/agents/run/stream';
+
+            const rr = await fetch(backendUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: ctrl.signal,
+                body: JSON.stringify({
+                    session_id: sid,
+                    message: buildPrompt(),
+                    inputs: {
+                        capital_amount:    +amount,
+                        investment_amount: +amount,
+                        risk_tolerance:    risk,
+                        risk_percentage:   risk === 'Conservative' ? 25 : risk === 'Aggressive' ? 75 : 50,
+                        investment_goal:   goal,
+                        time_horizon:      horizon,
+                        duration_years:    5,
+                        asset_classes:     assets,
+                        asset_preferences: assetPrefs,
+                        age:               +age,
+                        annual_income:     +income,
+                    },
+                }),
             });
-            if (!rr.ok) { const t = await rr.text(); throw new Error(`Agent error (${rr.status}): ${t.slice(0, 200)}`); }
-            const rd = await rr.json();
-            if (rd.status === 'failed') throw new Error(rd.error || 'Agent run failed');
-            addLog('⚖️ Risk Manager finalizing...', 'think');
-            addLog('✅ Analysis complete!', 'done');
-            setResult(rd.result || rd.output || JSON.stringify(rd, null, 2));
+            clearTimeout(timer);
+
+            if (!rr.ok || !rr.body) {
+                throw new Error(`Stream request failed: ${rr.status}`);
+            }
+
+            // Read the SSE stream line by line
+            const reader = rr.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            const processEvent = (data: string) => {
+                try {
+                    const ev = JSON.parse(data);
+
+                    if (ev.type === 'start') {
+                        addLog('⚡ Agents online — starting analysis...', 'info');
+
+                    } else if (ev.type === 'provider_start') {
+                        addLog(`🔗 Using ${ev.model?.split('/')[0] || 'AI'} for analysis`, 'info');
+
+                    } else if (ev.type === 'task_done') {
+                        // Show each agent's completion + first line of summary
+                        const firstLine = ev.summary?.split('\n')[0]?.slice(0, 80) || '';
+                        addLog(`${ev.emoji || '✅'} ${ev.agent} completed${firstLine ? ` — ${firstLine}…` : ''}`, 'done');
+
+                    } else if (ev.type === 'provider_switch') {
+                        addLog(`🔄 Switching provider (${ev.from_model?.split('/')[0]}) — retrying...`, 'think');
+
+                    } else if (ev.type === 'log') {
+                        addLog(`ℹ️ ${ev.message}`, 'think');
+
+                    } else if (ev.type === 'final') {
+                        // Full report received — render it
+                        const payload = ev.payload;
+                        const rd = payload?.result;
+                        const reportData = rd?.structured_data || rd?.report || rd;
+                        if (reportData) {
+                            addLog(`🏁 Report complete! (${payload?.model_used?.split('/')[0] || 'AI'})`, 'done');
+                            setResult(typeof reportData === 'string' ? reportData : JSON.stringify(reportData));
+                        }
+
+                    } else if (ev.type === 'error') {
+                        // Only show error if we have no result yet
+                        setResult(prev => {
+                            if (!prev) {
+                                setError(ev.message || 'Analysis failed');
+                                addLog(`❌ ${ev.message}`, 'err');
+                            }
+                            return prev;
+                        });
+                    }
+                } catch { /* ignore malformed events */ }
+            };
+
+            // Stream loop
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? ''; // keep incomplete last line
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        processEvent(line.slice(6).trim());
+                    }
+                }
+            }
+
         } catch (e: any) {
-            const m = e.message || 'Connection failed';
-            setError(m); addLog(`❌ ${m}`, 'err');
-        } finally { setRunning(false); }
+            if (e.name === 'AbortError') {
+                setError('Analysis timed out after 15 minutes.');
+                addLog('❌ Timed out', 'err');
+            } else {
+                // Only show the error if we haven't already shown a report
+                setResult(prev => {
+                    if (!prev) {
+                        setError(e.message || 'Connection failed');
+                        addLog(`❌ ${e.message || 'Connection failed'}`, 'err');
+                    }
+                    return prev;
+                });
+            }
+        } finally {
+            setRunning(false);
+        }
     };
+
 
     const download = () => {
         if (!result) return;

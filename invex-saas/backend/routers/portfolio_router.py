@@ -485,6 +485,7 @@ async def analyze_portfolio_news(request: Request, user_id: str, payload: Analyz
             portfolio_context=portfolio_context,
             chat_history=payload.chat_history,
             news_data=payload.news_context,  # Pass cited news directly — skips RSS fetch
+            user_id=user_id,                 # Enables compressed context injection
         )
         return result
     except Exception as e:

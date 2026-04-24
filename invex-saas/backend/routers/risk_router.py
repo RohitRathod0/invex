@@ -124,7 +124,10 @@ def get_user_profile(user_id: str, db: Session = Depends(get_db)):
     }
 
     from services.profile_cache import set_cached_profile
+    from utils.context_compressor import set_user_context
     set_cached_profile(user_id, user_context)
+    # Compress once, cache for agent system-prompt injection (~150 tokens)
+    set_user_context(user_id, user_context)
 
     return ProfileResponse(exists=True, user_context=user_context)
 

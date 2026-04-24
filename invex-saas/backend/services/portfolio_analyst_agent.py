@@ -2,11 +2,13 @@ import os
 import logging
 from typing import TypedDict, Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config import get_settings
 from services.news_service import MarketNewsTool
+from utils.resilient_llm import get_langchain_llm
+from utils.rate_limiter import analysis_limiter
+from utils.context_compressor import get_user_context
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -17,6 +19,7 @@ class PortfolioAnalystState(TypedDict):
     chat_history: List[Dict[str, str]]
     portfolio_context: str
     news_data: str
+    user_context: str       # Compressed risk-profile string (~150 tokens)
     analysis: str
     is_complete: bool
     feedback: str
@@ -25,29 +28,19 @@ class PortfolioAnalystState(TypedDict):
 
 class PortfolioAnalystAgent:
     def __init__(self):
-        groq_key = settings.GROQ_API_KEY or os.environ.get("GROQ_API_KEY")
+        # ── Model group isolation ─────────────────────────────────────────
+        # analysis_group: Gemini 2.0 Flash (1M TPM free tier) → Mistral → Groq
+        # This keeps the /analysis page completely isolated from the Groq
+        # quota used by market_news and screener agents.
+        self.primary_llm = get_langchain_llm("analysis_group")
 
-        # Fast/lightweight model — used for evaluation step (low token spend)
-        self.fast_llm = ChatGroq(
-            model="llama-3.1-8b-instant",
-            api_key=groq_key,
-            temperature=0,
-        )
+        # Evaluation step uses screener_group (lightweight Groq call)
+        # to avoid spending Gemini quota on self-evaluation.
+        self.eval_llm = get_langchain_llm("screener_group")
 
-        # Primary model — used for the main analysis (better reasoning)
-        _primary = ChatGroq(
-            model="llama-3.3-70b-versatile",
-            api_key=groq_key,
-            temperature=0.2,
-        )
-        # Fallback: if primary hits rate/token limit, drop to fast model
-        self.primary_llm = _primary.with_fallbacks([self.fast_llm])
-
-        self.eval_llm = self.fast_llm
-        
         # Tools
         self.news_tool = MarketNewsTool()
-        
+
         # Build the LangGraph
         self.app = self._build_graph()
 
@@ -104,30 +97,40 @@ class PortfolioAnalystAgent:
 
 
     def _analyze_impact(self, state: PortfolioAnalystState):
-        """Generates the primary personalized impact report based on news and portfolio context."""
+        """Generates the primary personalized impact report based on news and portfolio context.
+
+        Uses the analysis_group (Gemini Flash primary) and injects the
+        compressed user context string instead of the full raw JSON profile.
+        Rate-limiting is handled at the async entry point (run_analyst).
+        """
         query = state.get("query", "Analyze the impact of today's news on my portfolio.")
         portfolio = state.get("portfolio_context", "Cash / No holdings.")
         news = state.get("news_data", "No news provided.")
         history = state.get("chat_history", [])
         feedback = state.get("feedback", "")
-        
-        system_prompt = """
-        You are a highly capable AI Portfolio Analyst. Your job is to read today's market news 
-        and the user's specific portfolio holdings, and determine EXACTLY how the news impacts their positions.
-        If the user asks follow-up questions, use the conversation history to maintain context.
-        
-        Keep it analytical, objective, and dense. DO NOT USE FLUFF.
-        """
-        
+        # Compressed user context (~150 tokens) injected from cache
+        user_ctx = state.get("user_context", "No risk profile set.")
+
+        system_prompt = (
+            "You are a highly capable AI Portfolio Analyst. "
+            f"User context: {user_ctx}\n\n"
+            "Your job is to read today's market news and the user's specific portfolio holdings, "
+            "and determine EXACTLY how the news impacts their positions. "
+            "If the user asks follow-up questions, use the conversation history to maintain context. "
+            "Keep it analytical, objective, and dense. DO NOT USE FLUFF. "
+            "Provide in-depth analysis with specific numbers, sector breakdowns, risk factors, "
+            "and actionable recommendations tailored to the user's risk profile above."
+        )
+
         if feedback:
-            system_prompt += f"\nPREVIOUS EVALUATOR FEEDBACK: {feedback}\nAddress this in your new response."
-            
+            system_prompt += f"\n\nPREVIOUS EVALUATOR FEEDBACK: {feedback}\nAddress this in your new response."
+
         messages = [SystemMessage(content=system_prompt)]
-        
-        # Inject portfolio and news context inside the system message or as first message
-        context_msg = f"Portfolio Holdings:\n{portfolio}\n\nToday's News:\n{news}"
+
+        # Inject portfolio and news context
+        context_msg = f"Portfolio Holdings:\n{portfolio}\n\nToday's Market Intelligence:\n{news}"
         messages.append(SystemMessage(content=context_msg))
-        
+
         # Inject chat history
         for msg in history:
             role = msg.get("role", "")
@@ -136,17 +139,17 @@ class PortfolioAnalystAgent:
                 messages.append(HumanMessage(content=content))
             elif role == "assistant":
                 messages.append(SystemMessage(content=f"Assistant: {content}"))
-                
+
         # Inject current query
         messages.append(HumanMessage(content=query))
-        
+
         try:
             res = self.primary_llm.invoke(messages)
             analysis = res.content.strip()
         except Exception as e:
             logger.error(f"Error in analyze_impact: {str(e)}")
             analysis = f"Analysis generation failed due to API error: {str(e)}"
-            
+
         return {"analysis": analysis}
 
     def _evaluate(self, state: PortfolioAnalystState):
@@ -203,32 +206,44 @@ class PortfolioAnalystAgent:
         portfolio_context: str,
         chat_history: List[Dict[str, str]] = None,
         news_data: str = None,
-        max_attempts: int = 3
+        max_attempts: int = 3,
+        user_id: str = None,
     ) -> Dict[str, Any]:
         """Entry point for the REST API endpoint.
-        
+
         Args:
             news_data: Pre-fetched news text (e.g. from frontend @ citation).
                        When provided, skips the expensive RSS+yfinance fetch entirely.
+            user_id:   Used to look up the compressed risk-profile context string.
+                       If omitted, a generic fallback string is used.
         """
+        # ── Rate-limit gate (analysis_group / Gemini Flash) ───────────────
+        # Estimate: ~500 tokens for analysis + ~4 tokens/word of user query
+        est_tokens = 500 + len(user_query.split()) * 4
+        await analysis_limiter.acquire(estimated_tokens=est_tokens)
+
+        # ── Compressed user context (replaces raw JSON blob) ─────────────
+        user_ctx = get_user_context(user_id) if user_id else "No risk profile set."
+
         init_state = {
             "query": user_query,
             "chat_history": chat_history or [],
             "portfolio_context": portfolio_context,
-            "news_data": news_data or "",  # Empty string → fetch; non-empty → skip fetch
+            "news_data": news_data or "",  # Empty → fetch; non-empty → skip fetch
+            "user_context": user_ctx,
             "analysis": "",
             "is_complete": False,
             "feedback": "",
             "attempt": 0,
-            "max_attempts": max_attempts
+            "max_attempts": max_attempts,
         }
-        
+
         final_state = await self.app.ainvoke(init_state)
-        
+
         return {
             "analysis": final_state.get("analysis", ""),
             "is_complete": final_state.get("is_complete", False),
-            "attempts": final_state.get("attempt", 1)
+            "attempts": final_state.get("attempt", 1),
         }
 
 # Singleton instance

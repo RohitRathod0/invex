@@ -62,15 +62,25 @@ async def generation_node(state: EngineState) -> Dict[str, Any]:
     inputs = state["inputs"]
     market_data = state["market_data"]
 
-    # Use Mistral ministral-8b-2512 for fast mode — 50k TPM, ideal for quick analysis
-    # Models available: ministral-8b-2512, mistral-large-2512, pixtral-large-2411, voxtral-mini-2507
+    # Fast engine uses LangGraph + LangChain directly (not CrewAI/LiteLLM).
+    # Mistral is now PRIMARY for all analysis — stable paid quota.
+    # Gemini kept as fallback in case Mistral hits limits.
     from langchain_mistralai import ChatMistralAI
+    from langchain_google_genai import ChatGoogleGenerativeAI
     import os
-    llm = ChatMistralAI(
-        model="ministral-8b-2512",
+    _primary_llm = ChatMistralAI(
+        model="mistral-large-latest",
         api_key=os.environ.get("MISTRAL_API_KEY"),
-        temperature=0.2
+        temperature=0.2,
+        max_tokens=8192,
     )
+    _fallback_llm = ChatMistralAI(
+        model="mistral-small-latest",
+        api_key=os.environ.get("MISTRAL_API_KEY"),
+        temperature=0.2,
+        max_tokens=4096,
+    )
+    llm = _primary_llm.with_fallbacks([_fallback_llm])
     structured_llm = llm.with_structured_output(PortfolioReport)
 
     prompt = ChatPromptTemplate.from_messages([

@@ -75,8 +75,7 @@ class InvexAIRouter:
 
         topic = request.topic or request.user_question or ""
 
-        # CRITICAL FIX: If no capital provided (user is just chatting), always use CHAT.
-        # Without this, capital=0 < 100000 = True, which routes pure chat queries to FAST.
+        # If no capital provided (user is just chatting), use CHAT.
         if not request.capital_amount or request.capital_amount == 0:
             return ExecutionMode.CHAT
 
@@ -85,12 +84,12 @@ class InvexAIRouter:
         if is_basic_question and topic:
             return ExecutionMode.CHAT
 
-        if request.capital_amount < 100000:
-            # For smaller portfolios, prioritize speed
+        # DEEP for ≥ ₹1L (full CrewAI analysis). FAST for smaller amounts.
+        if request.capital_amount < 100_000:
             return ExecutionMode.FAST
 
-        # For large portfolios, use comprehensive CrewAI
         return ExecutionMode.DEEP
+
 
 
 # Backward compatibility wrapper for old code: `crew = Invex()` -> `crew = InvexV2()`

@@ -37,7 +37,14 @@ import feedparser
 
 
 def _get_news_llm(model_name: str = None):
-    # Using LiteLLM strictly for news — keep max_tokens low to save TPM
+    """Build a CrewAI LLM for the news group.
+
+    Priority: Groq llama-3.1-8b-instant (primary, 6k TPM)
+              → gemini/gemini-2.0-flash (fallback, 1M TPM free tier)
+              → mistral/mistral-small-latest (last resort)
+
+    max_tokens kept low (2048) to stay within Groq’s per-request limit.
+    """
     if not model_name:
         model_name = os.environ.get("NEWS_MODEL", "groq/llama-3.1-8b-instant")
     elif "/" not in model_name:
@@ -253,15 +260,19 @@ def run_news_analysis() -> dict:
     Run a 2-agent crew:
       1. news_fetcher — fetches and summarizes market-moving news
       2. market_decision_agent — converts news into BUY/SELL/HOLD signals
+
+    Model group: news_group (Groq primary → Gemini 2.0 Flash fallback → Mistral).
+    Completely isolated from the analysis_group used by /analysis page agents.
     """
     run_id = f"news_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    
+
     try:
-        # Confirmed-active Groq models (as of Apr 2025), ordered by size/token-spend
+        # news_group priority order: Groq fast → Gemini Flash → Mistral small
         NEWS_AGENT_MODELS = [
-            "groq/llama-3.1-8b-instant",       # 6,000 TPM — fast, 128k ctx, reliable
-            "groq/gemma2-9b-it",               # 14,400 TPM — highest free-tier TPM
-            "groq/llama-3.3-70b-versatile",    # 6,000 TPM — larger, last resort
+            "groq/llama-3.1-8b-instant",       # 6,000 TPM — fast, 128k ctx, primary
+            "groq/gemma2-9b-it",               # 14,400 TPM — Groq alt if llama hits limit
+            "gemini/gemini-2.0-flash",          # 1,000,000 TPM — Gemini fallback
+            "mistral/mistral-small-latest",     # 50,000 TPM — last resort
         ]
         result = None
         error_msg = ""

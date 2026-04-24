@@ -58,8 +58,8 @@ The project adopts a modern, highly scalable architecture with clear separation 
 - **Insider Trading Tracker (`/insider`):** Dedicated engine parsing bulk block-deals and insider buying/selling patterns (`insider_router.py`).
 - **Data Protection:** Implements stringent data protection compliance modules mapping user PII and financial records with top-tier encryption logic.
 
-### ⚖️ Hindi Legal NER Assistant (`/legal`)
-- **Multilingual Legal Processing:** Specialized backend pipeline for Hindi Legal Named Entity Recognition (NER).
+### ⚖️ Legal NER Assistant (`/legal`)
+- **Multilingual Legal Processing:** Specialized backend pipeline for Legal Named Entity Recognition (NER).
 - **Academic & IP Secrecy:** The pipeline is completely obfuscated behind the FastAPI backend, shielding detection logic and API dependencies from frontend client network inspection. Rebranded as the "Local Analysis Engine" in the UI.
 
 ### 📊 Portfolio Management & Dashboard (`/dashboard`)
