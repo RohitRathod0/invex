@@ -1,0 +1,82 @@
+# ═══════════════════════════════════════════════════════
+#  Invex SaaS — Root .gitignore
+#  Covers: backend (Python/FastAPI), frontend (Next.js),
+#          crew_core (CrewAI/uv), and OS/editor noise
+# ═══════════════════════════════════════════════════════
+
+# ── Secrets & Environment ────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# ── Backend (Python / FastAPI) ───────────────────────────
+backend/venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/**/*.pyd
+backend/*.egg-info/
+backend/dist/
+backend/build/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/invex.db
+backend/*.db
+backend/*.sqlite3
+backend/logs/
+backend/*.log
+
+# ── Crew Core (CrewAI / uv) ──────────────────────────────
+crew_core/.venv/
+crew_core/venv/
+crew_core/__pycache__/
+crew_core/**/__pycache__/
+crew_core/**/*.pyc
+crew_core/report.md
+crew_core/logs/
+crew_core/*.log
+
+# ── Frontend (Next.js) ───────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp/
+frontend/.pnp.js
+frontend/tsconfig.tsbuildinfo
+
+# ── Docker ───────────────────────────────────────────────
+*.dockerignore
+docker-compose.override.yml
+
+# ── OS ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# ── Editors ──────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.history/
+
+# ── Misc ─────────────────────────────────────────────────
+*.jar
+*.class
+*.zip
+*.tar.gz

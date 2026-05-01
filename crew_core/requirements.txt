@@ -1,0 +1,29 @@
+# ── crew_core/requirements.txt ──────────────────────────────────────────────
+# Generated from full analysis of crew_core/src/invex/**
+# Python >= 3.10, < 3.14  (as specified in pyproject.toml)
+#
+# Install with:  pip install -r requirements.txt
+
+# ── CrewAI (core + bundled tools) ───────────────────────────────────────────
+crewai[tools]>=0.86.0,<1.0.0
+
+# ── LangChain ecosystem ──────────────────────────────────────────────────────
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+
+# ── LangGraph (fast_engine + chat_engine) ───────────────────────────────────
+langgraph>=0.2.0
+
+# ── LLM Provider integrations ───────────────────────────────────────────────
+langchain-groq>=0.2.0            # chat_engine.py  — ChatGroq
+langchain-mistralai>=0.2.0       # fast_engine.py  — ChatMistralAI
+langchain-google-genai>=2.0.0    # fast_engine.py  — ChatGoogleGenerativeAI
+
+# ── Financial data tools ─────────────────────────────────────────────────────
+yfinance>=0.2.36                 # stock_tools.py, gold_tools.py
+wbgapi>=1.0.12                   # economic_tools.py (World Bank GDP/CPI)
+requests>=2.31.0                 # crypto_tools.py, mutual_fund_tools.py
+
+# ── Data / utilities ─────────────────────────────────────────────────────────
+pydantic>=2.0.0                  # schemas.py + all tools input schemas
