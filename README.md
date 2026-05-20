@@ -1,139 +1,279 @@
-# InveX - Advanced AI-Powered Financial & Portfolio Analysis Platform
 
-Welcome to the **InveX** monorepo! InveX is an advanced, production-ready SaaS application designed to empower investors with real-time portfolio tracking, comprehensive market news, highly customized AI-driven financial analysis, voice-activated onboarding, and stringent compliance tracking.
+
+## 📖 Table of Contents
+
+
+
+- [⚡ Overview](#-overview)
+- [🏗️ System Architecture](#%EF%B8%8F-system-architecture)
+  - [Frontend](#1-frontend-invex-saasfrontend)
+  - [Backend](#2-backend-invex-saasbackend)
+  - [AI Core Engine](#3-ai-core-engine-invex-saascrew_core)
+- [✨ Features](#-features)
+  - [Voice Agent & Onboarding](#%EF%B8%8F-voice-agent--interactive-onboarding)
+  - [Intelligent Chat](#-intelligent-chat-architecture)
+  - [Deep Analysis Agents](#-deep-analysis-agents)
+  - [Market News Agent](#-market-news-agent)
+  - [Stock Screener](#-advanced-stock-screener)
+  - [Security & Compliance](#%EF%B8%8F-security-compliance--sebi-warning-engine)
+  - [Legal NER Assistant](#%EF%B8%8F-legal-ner-assistant)
+  - [Portfolio Dashboard](#-portfolio-management--dashboard)
+  - [Real-Time Market Tools](#-real-time-market-tools)
+- [🚀 Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Backend Setup](#backend-setup)
+  - [Frontend Setup](#frontend-setup)
+- [📁 Monorepo Structure](#-monorepo-structure)
+
+</details>
 
 ---
 
-## 🏗 System Architecture
+## ⚡ Overview
 
-The project adopts a modern, highly scalable architecture with clear separation of concerns across the user interface, backend APIs, and the AI intelligence core.
+**InveX** is a production-ready, full-stack SaaS platform built for serious investors. It combines a responsive Next.js frontend, a high-performance FastAPI backend, and a Mistral AI–powered intelligence core to deliver real-time portfolio insights, voice-activated onboarding, and SEBI-compliant compliance tracking — all in one monorepo.
+
+> 💡 **New to InveX?** Start with the [Quick Start guide](#-quick-start) to get up and running in minutes.
+
+---
+
+## 🏗️ System Architecture
+
+The project adopts a modern, scalable three-layer architecture with strict separation of concerns.
 
 ### 1. Frontend (`invex-saas/frontend`)
-- **Framework:** Next.js (React 18) utilizing the App Router.
-- **Styling & UI:** Tailwind CSS for utility-first styling, Framer Motion for smooth micro-animations, and Lucide React for consistent iconography.
-- **State Management:** Zustand for lightweight, fast global state (e.g., Auth store, Session store).
-- **Data Visualization:** Recharts for dynamic portfolio, market charts, and asset allocation pie charts.
-- **Communication:** Axios for REST API calls with automated JWT token refresh and WebSockets for real-time market/event updates.
+
+| Technology | Purpose |
+|---|---|
+| **Next.js 18** (App Router) | Core UI framework |
+| **Tailwind CSS** + Framer Motion | Styling & micro-animations |
+| **Zustand** | Lightweight global state (Auth, Session) |
+| **Recharts** | Portfolio charts & asset allocation |
+| **Axios** + WebSockets | REST calls with JWT refresh & real-time updates |
 
 ### 2. Backend (`invex-saas/backend`)
-- **Framework:** FastAPI (Python), offering extreme performance, asynchronous processing, and auto-generated OpenAPI documentation.
-- **Database ORM:** SQLAlchemy with Alembic for migrations, managing Postgres/SQLite databases.
-- **Authentication:** Secure JWT-based authentication using `bcrypt` for password hashing.
-- **Rate Limiting:** `SlowAPI` (Redis-backed) to prevent abuse of AI endpoints and data routes.
-- **Deployment & Scaling:** Containerized with Docker, background tasks managed by Celery & Redis, and serverless-ready via `Mangum` for AWS Lambda compatibility.
+
+| Technology | Purpose |
+|---|---|
+| **FastAPI** (Python) | Async API server + OpenAPI docs |
+| **SQLAlchemy** + Alembic | ORM with Postgres/SQLite migrations |
+| **bcrypt** + JWT | Secure authentication |
+| **SlowAPI** (Redis-backed) | Rate limiting on AI & data endpoints |
+| **Celery** + Redis | Background task queue |
+| **Mangum** | AWS Lambda / serverless compatibility |
 
 ### 3. AI Core Engine (`invex-saas/crew_core`)
-- **Provider:** Powered by **Mistral AI** (`mistral-large-2512` for deep reasoning, `ministral-8b-2512` for fast data extraction and chat).
-- **Orchestration:** Integrated with Langchain (`langchain-mistralai`) and CrewAI for autonomous agent coordination.
-- **Privacy & Compliance:** Backend-orchestrated AI pipelines designed to ensure proprietary secrecy (no external API keys exposed to frontend).
+
+| Technology | Purpose |
+|---|---|
+| **`mistral-large-2512`** | Deep reasoning, multi-step analysis |
+| **`ministral-8b-2512`** | Fast data extraction & chat |
+| **LangChain** + CrewAI | Agent orchestration & coordination |
+
+> 🔒 **Privacy by design:** All AI pipelines run exclusively on the backend. No API keys are ever exposed to the client.
 
 ---
 
-## ✨ Comprehensive Feature List
+## ✨ Features
 
-### 🎙️ Voice Agent & Interactive Onboarding (`/onboarding`)
-- **Interactive Voice Agent:** A dedicated onboarding agent orchestrates user intake using real-time voice and conversational AI.
-- **Risk Profiling Integration:** Dynamically categorizes users (Conservative, Moderate, Aggressive) by analyzing verbal and text responses.
-- **Architecture:** The `/onboarding` frontend communicates with the backend `onboarding_router.py` to seamlessly establish the user's initial portfolio baseline and investment preferences.
+### 🎙️ Voice Agent & Interactive Onboarding
 
-### 💬 Intelligent Chat Architecture (`/chat`)
-- **Session-Aware Memory:** Users can engage in detailed financial discussions while the system maintains deep context per session.
-- **Date-Grouped Navigation:** Persistent conversation history UI grouped by "Today", "Yesterday", and "Previous 7 Days".
-- **Auto-Pruning:** Automatic 5-day memory pruning managed by `session_router.py` to maintain optimal context window limits and strict Mistral API token efficiency.
+An orchestrated voice agent guides new users through intake — collecting preferences and building an investment baseline — entirely through conversational AI.
 
-### 🧠 Deep Analysis Agents (`/analysis`)
-- **Portfolio Analyst:** Deep-dives into existing portfolios to recommend tactical rebalancing, strictly evaluating against the user's risk profile.
-- **Mistral Orchestration:** Utilizes `mistral-large-2512` via the `agent_router.py` to run multi-step reasoning, ensuring highly accurate market forecasts and personalized adjustments.
+- Real-time voice + text intake via `/onboarding`
+- **Dynamic risk profiling:** Automatically categorizes users as _Conservative_, _Moderate_, or _Aggressive_
+- Seamlessly establishes portfolio baseline via `onboarding_router.py`
 
-### 📰 Market News Agent (`/news` & `/market_news`)
-- **Real-Time Curation:** Continuously scans, curates, and summarizes global financial news into highly actionable macro/micro insights.
-- **Fast Extraction:** Powered by `ministral-8b-2512` and served via `news_router.py` for sub-second summarization and sentiment analysis.
+---
 
-### 🔍 Advanced Stock Screener (`/screener`)
-- **Custom Filters:** Fully featured stock screener allowing users to filter via technicals and fundamentals (e.g., P/E ratio < 50, RSI oversold).
-- **AI Sector Analyst Integration:** Every stock click triggers a micro-analysis, instantly generating a 5-8 line insight specific to that stock's sector context.
+### 💬 Intelligent Chat Architecture
 
-### 🛡️ Security, Compliance, and SEBI Warning Engine (`/security`)
-- **SEBI-Powered Warning Mechanism:** The frontend explicitly renders compliance banners and statutory warnings on high-risk actions, adhering to SEBI guidelines.
-- **Insider Trading Tracker (`/insider`):** Dedicated engine parsing bulk block-deals and insider buying/selling patterns (`insider_router.py`).
-- **Data Protection:** Implements stringent data protection compliance modules mapping user PII and financial records with top-tier encryption logic.
+Session-aware financial conversations with persistent, grouped history.
 
-### ⚖️ Legal NER Assistant (`/legal`)
-- **Multilingual Legal Processing:** Specialized backend pipeline for Legal Named Entity Recognition (NER).
-- **Academic & IP Secrecy:** The pipeline is completely obfuscated behind the FastAPI backend, shielding detection logic and API dependencies from frontend client network inspection. Rebranded as the "Local Analysis Engine" in the UI.
+- **Deep context per session** — the model always knows your portfolio state
+- **Date-grouped UI:** _Today_, _Yesterday_, _Previous 7 Days_
+- **Auto-pruning:** 5-day memory cleanup via `session_router.py` to maintain Mistral token efficiency
 
-### 📊 Portfolio Management & Dashboard (`/dashboard`)
-- **Holdings Table:** Real-time stock quotes merged with the user's portfolio ledger.
-- **Asset Allocation:** Clean visualizations using Recharts.
-- **Upload Sync:** Supports manual CSV uploads or backend syncing via `portfolio_router.py`.
+---
+
+### 🧠 Deep Analysis Agents
+
+Multi-step portfolio reasoning powered by `mistral-large-2512`.
+
+- Tactical **rebalancing recommendations** anchored to the user's risk profile
+- Personalized market forecasts via multi-agent reasoning in `agent_router.py`
+- Evaluation strictly constrained to the user's declared investment parameters
+
+---
+
+### 📰 Market News Agent
+
+Real-time global financial news, curated and summarized for action.
+
+- Continuously scans macro & micro financial events
+- Sub-second **sentiment analysis** powered by `ministral-8b-2512`
+- Served via `news_router.py` — fast extraction pipeline
+
+---
+
+### 🔍 Advanced Stock Screener
+
+A fully-featured screener with AI sector context on every click.
+
+- Filter by technicals & fundamentals (e.g., `P/E < 50`, `RSI oversold`)
+- Every stock click triggers an **instant 5–8 line sector insight**
+- AI Sector Analyst integration runs in the background — no waiting
+
+---
+
+### 🛡️ Security, Compliance & SEBI Warning Engine
+
+Regulatory-grade compliance built into every high-risk user action.
+
+- **SEBI-compliant banners** rendered on the frontend for high-risk operations
+- **Insider Trading Tracker** — parses bulk block-deals and insider buy/sell patterns via `insider_router.py`
+- End-to-end **PII encryption** and data protection compliance mapping
+
+---
+
+### ⚖️ Legal NER Assistant
+
+Specialized multilingual Legal Named Entity Recognition pipeline.
+
+- Backend-only pipeline — completely hidden from client network inspection
+- Detection logic and API dependencies are fully obfuscated
+- Branded as **"Local Analysis Engine"** in the UI for IP protection
+
+---
+
+### 📊 Portfolio Management & Dashboard
+
+A live portfolio hub with real data and clean visualizations.
+
+- **Holdings table** with real-time stock quotes merged from the user's ledger
+- **Asset allocation charts** via Recharts
+- Manual CSV upload or backend sync via `portfolio_router.py`
+
+---
 
 ### 📅 Real-Time Market Tools
-- **Earnings Calendar (`/earnings`):** Tracks upcoming earnings calls.
-- **Alert System:** WebSockets-enabled instant notifications for price movements (`alert_router.py`).
-- **Research Hub (`/research`):** Deep fundamental research and valuation models accessible via the UI.
+
+| Tool | Description |
+|---|---|
+| **Earnings Calendar** `/earnings` | Tracks upcoming earnings calls |
+| **Alert System** | WebSocket-powered price movement notifications via `alert_router.py` |
+| **Research Hub** `/research` | Fundamental research & valuation models |
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v18+)
-- Python 3.10+
+
+- Node.js `v18+`
+- Python `3.10+`
 - PostgreSQL or SQLite
-- Redis (for Celery and Rate Limiting)
+- Redis _(for Celery and Rate Limiting)_
 - Mistral AI API Key
-
-### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd invex-saas/backend
-   ```
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-3. Set up your `.env` file (copy `.env.example` to `.env` and configure `MISTRAL_API_KEY`, `DATABASE_URL`, etc.).
-4. Run the API Server:
-   ```bash
-   uvicorn main:app --reload --port 8000
-   ```
-
-### Frontend Setup
-1. Navigate to the frontend directory:
-   ```bash
-   cd invex-saas/frontend
-   ```
-2. Install Node dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the Next.js development server:
-   ```bash
-   npm run dev
-   ```
-   The UI will be accessible at `http://localhost:3000`.
 
 ---
 
-## 📁 Complete Monorepo Structure
+### Backend Setup
+
+```bash
+# 1. Navigate to backend
+cd invex-saas/backend
+
+# 2. Create virtual environment
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Configure environment
+cp .env.example .env
+# → Set MISTRAL_API_KEY, DATABASE_URL, REDIS_URL, etc.
+
+# 5. Run database migrations
+alembic upgrade head
+
+# 6. Start the API server
+uvicorn main:app --reload --port 8000
+```
+
+> API will be live at `http://localhost:8000` — auto-generated docs at `/docs`.
+
+---
+
+### Frontend Setup
+
+```bash
+# 1. Navigate to frontend
+cd invex-saas/frontend
+
+# 2. Install dependencies
+npm install
+
+# 3. Start dev server
+npm run dev
+```
+
+> UI will be live at `http://localhost:3000`.
+
+---
+
+## 📁 Monorepo Structure
 
 ```text
 invex/
 ├── invex-saas/
-│   ├── backend/          
-│   │   ├── routers/      # auth, agent, session, onboarding, portfolio, insider, security, etc.
-│   │   ├── models/       # SQLAlchemy DB schemas
-│   │   ├── services/     # Core business logic
-│   │   ├── middleware/   # Request logging, auth checks
-│   │   └── compliance/   # Data protection logic
-│   ├── frontend/         
-│   │   ├── app/          # Next.js App Router (dashboard, chat, analysis, onboarding, security)
-│   │   ├── components/   # UI elements, Charts, Tables
-│   │   └── lib/          # API clients, Zustand stores, Utilities
-│   └── crew_core/        # Mistral AI powered Langchain/CrewAI logic (Agents, Tasks)
-└── invex-landing/        # Marketing & Landing page (Next.js)
+│   ├── backend/
+│   │   ├── routers/        # auth, agent, session, onboarding,
+│   │   │                   # portfolio, insider, security, news, alert…
+│   │   ├── models/         # SQLAlchemy DB schemas
+│   │   ├── services/       # Core business logic
+│   │   ├── middleware/     # Request logging, auth checks
+│   │   └── compliance/     # Data protection & PII encryption
+│   │
+│   ├── frontend/
+│   │   ├── app/            # Next.js App Router
+│   │   │                   # (dashboard, chat, analysis, onboarding, security…)
+│   │   ├── components/     # UI elements, Charts, Tables
+│   │   └── lib/            # API clients, Zustand stores, Utilities
+│   │
+│   └── crew_core/          # Mistral AI · LangChain · CrewAI
+│                           # (Agents, Tasks, Orchestration)
+│
+└── invex-landing/          # Marketing & Landing page (Next.js)
 ```
 
-*(Note: Legacy scripts, outdated configuration files, and dummy `.venv` structures at the root have been purged to maintain repository cleanliness and a strict separation of concerns.)*
+---
+
+## 🎬 Demo
+
+https://youtu.be/1o4z4oubY7M?si=q-wW-pe4aVQR-env
+https://youtu.be/732I9y7tbek?si=bK4JLbzI4buETeRO
+
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to open an [issue](#) or submit a pull request.
+
+1. Fork the project
+2. Create your feature branch: `git checkout -b feat/amazing-feature`
+3. Commit your changes: `git commit -m 'feat: add amazing feature'`
+4. Push to the branch: `git push origin feat/amazing-feature`
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+
+
+---
+
+<p align="center">
+  Built with ⚡ by the InveX Team &nbsp;·&nbsp; Powered by <strong>Mistral AI</strong>
+</p>
