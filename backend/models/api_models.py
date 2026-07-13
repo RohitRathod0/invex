@@ -28,6 +28,7 @@ class RunAgentRequest(BaseModel):
     message: str
     inputs: Optional[Dict[str, Any]] = None
     stream: bool = False
+    user_id: Optional[str] = None   # used to inject risk profile into crew inputs
 
 class UploadDocumentRequest(BaseModel):
     pass # File upload handled via Form/File

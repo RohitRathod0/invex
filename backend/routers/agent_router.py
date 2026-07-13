@@ -23,6 +23,37 @@ async def run_crew_agent_endpoint(request: Request, body: RunAgentRequest):
     frontend never sees a raw 500.
     """
     try:
+        # ── Inject risk profile if user_id provided ───────────────────────────
+        if body.user_id:
+            from services.profile_cache import get_cached_profile
+            profile = get_cached_profile(body.user_id)
+            if not profile:
+                from models.database import get_db
+                from models.db_models import RiskProfile
+                import json
+                db = next(get_db())
+                rp = db.query(RiskProfile).filter(RiskProfile.user_id == body.user_id).first()
+                if rp:
+                    profile = {
+                        "risk_label":         rp.risk_label,
+                        "risk_score":         rp.risk_score,
+                        "horizon_years":      rp.horizon_years,
+                        "loss_tolerance_pct": rp.loss_tolerance_pct,
+                        "preferred_sectors":  json.loads(rp.preferred_sectors or "[]"),
+                        "excluded_sectors":   json.loads(rp.excluded_sectors or "[]"),
+                        "income_stability":   rp.income_stability,
+                    }
+            if profile:
+                body.inputs = body.inputs or {}
+                body.inputs["user_risk_label"]        = profile.get("risk_label", "moderate")
+                body.inputs["user_risk_score"]        = profile.get("risk_score", 50)
+                body.inputs["user_horizon_years"]     = profile.get("horizon_years")
+                body.inputs["user_loss_tolerance_pct"] = profile.get("loss_tolerance_pct")
+                body.inputs["user_preferred_sectors"] = profile.get("preferred_sectors", [])
+                body.inputs["user_excluded_sectors"]  = profile.get("excluded_sectors", [])
+                # Override risk_tolerance from profile
+                body.inputs["risk_tolerance"] = profile.get("risk_label", body.inputs.get("risk_tolerance", "moderate"))
+
         result = await run_crew_agent(body.message, body.session_id, body.inputs)
         return JSONResponse(status_code=200, content=result)
     except Exception as exc:
@@ -76,6 +107,36 @@ async def stream_crew_agent(request: Request, body: RunAgentRequest):
     risk_pct = int(inputs.get('risk_percentage', 50))
     duration = int(inputs.get('duration_years', 5))
     expected_returns = float(inputs.get('expected_returns', 15))
+
+    # ── Inject risk profile if user_id provided ───────────────────────────────
+    if body.user_id:
+        from services.profile_cache import get_cached_profile
+        profile = get_cached_profile(body.user_id)
+        if not profile:
+            from models.database import get_db
+            from models.db_models import RiskProfile
+            import json as _json
+            db = next(get_db())
+            rp = db.query(RiskProfile).filter(RiskProfile.user_id == body.user_id).first()
+            if rp:
+                profile = {
+                    "risk_label":         rp.risk_label,
+                    "risk_score":         rp.risk_score,
+                    "horizon_years":      rp.horizon_years,
+                    "loss_tolerance_pct": rp.loss_tolerance_pct,
+                    "preferred_sectors":  _json.loads(rp.preferred_sectors or "[]"),
+                    "excluded_sectors":   _json.loads(rp.excluded_sectors or "[]"),
+                }
+        if profile:
+            inputs["user_risk_label"]        = profile.get("risk_label", "moderate")
+            inputs["user_risk_score"]        = profile.get("risk_score", 50)
+            inputs["user_horizon_years"]     = profile.get("horizon_years")
+            inputs["user_preferred_sectors"] = profile.get("preferred_sectors", [])
+            inputs["user_excluded_sectors"]  = profile.get("excluded_sectors", [])
+            # derive risk_pct from profile if not explicitly set in inputs
+            label = profile.get("risk_label", "moderate")
+            if not inputs.get("risk_percentage"):
+                risk_pct = 25 if "conserv" in label else 75 if "aggress" in label else 50
 
     asset_preferences = inputs.get('asset_preferences', {
         'stocks': True, 'mutual_funds': True, 'gold': True, 'crypto': True

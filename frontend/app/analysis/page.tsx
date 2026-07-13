@@ -46,6 +46,8 @@ export default function AnalysisPage() {
     const [result, setResult] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [sessionId, setSessionId] = useState<string | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
+    const [profileBadge, setProfileBadge] = useState<string | null>(null); // e.g. "Moderate"
     const logsEnd = useRef<HTMLDivElement>(null);
 
     const fetchTickers = async () => {
@@ -57,6 +59,40 @@ export default function AnalysisPage() {
         } catch { }
         finally { setTickLoading(false); }
     };
+
+    // ── Fetch risk profile on mount and pre-fill form ───────────────────────
+    useEffect(() => {
+        const uid = localStorage.getItem('invex_user_id') || '0000-user';
+        setUserId(uid);
+        (async () => {
+            try {
+                const res = await fetch(`/api/v1/risk/profile/${uid}`);
+                if (!res.ok) return;
+                const d = await res.json();
+                if (!d.exists || !d.user_context) return;
+                const ctx = d.user_context;
+                // Pre-fill risk
+                const label: string = (ctx.risk_label || '').toLowerCase();
+                if (label.includes('conserv'))      { setRisk('Conservative'); }
+                else if (label.includes('aggress'))  { setRisk('Aggressive'); }
+                else                                 { setRisk('Moderate'); }
+                setProfileBadge((ctx.risk_label || '').replace(/_/g, ' '));
+                // Pre-fill horizon
+                const yrs: number = ctx.horizon_years || 0;
+                if (yrs <= 1)       setHorizon('< 1 Year');
+                else if (yrs <= 3)  setHorizon('1–3 Years');
+                else if (yrs <= 5)  setHorizon('3–5 Years');
+                else if (yrs <= 10) setHorizon('5–10 Years');
+                else                setHorizon('10+ Years');
+                // Pre-fill preferred sectors as assets if available
+                const prefs: string[] = ctx.preferred_sectors || [];
+                if (prefs.length > 0) {
+                    // keep existing defaults, just a hint
+                }
+            } catch { /* no profile yet — fine */ }
+        })();
+    }, []);
+
     useEffect(() => { fetchTickers(); }, []);
     useEffect(() => { logsEnd.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 
@@ -111,6 +147,7 @@ export default function AnalysisPage() {
                 body: JSON.stringify({
                     session_id: sid,
                     message: buildPrompt(),
+                    user_id: userId,           // ← risk profile injected server-side
                     inputs: {
                         capital_amount:    +amount,
                         investment_amount: +amount,

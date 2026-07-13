@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getCurrentDateContext(): string {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-IN', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    const year = now.getFullYear();
+    const month = now.toLocaleString('en-IN', { month: 'long' });
+    return `Today's date is ${dateStr}. Current year: ${year}. Current month: ${month}.`;
+}
+
 // ─── Mode-specific system prompts ────────────────────────────────────────────
 const SYSTEM_PROMPTS: Record<string, string> = {
     'agent-debrief': `You are the Invex AI debrief assistant. A CrewAI analysis report was just completed. The user wants to understand specific decisions. Rules:
@@ -17,18 +28,24 @@ Context: {analysis_context}`,
 4. Be direct and specific. No hedging. The user needs actionable information.
 5. If news is very impactful, say "⚠️ HIGH IMPACT" at the start`,
 
-    'what-if': `You are the Invex AI What-If Simulator. The user wants to run a historical investment scenario.
+    'what-if': `You are the Invex AI What-If Simulator. The user wants to run a historical or hypothetical investment scenario.
 You MUST respond with valid JSON in this exact format:
 {
   "explanation": "1-2 sentence plain English explanation of the outcome",
   "pnl": "+₹12,400 (24.8% return)",
   "cagr": "28.4% CAGR",
   "vs_benchmark": "Nifty 50 gave 18% in same period — you beat the market",
-  "chartData": [{"date": "Jan 2024", "value": 100000}, {"date": "Feb 2024", "value": 108000}, ...],
+  "chartData": [{"date": "Jan 2026", "value": 100000}, {"date": "Feb 2026", "value": 108000}, ...],
   "suggestions": ["What if you added ₹5K every month (SIP)?", "Compare with Gold ETF instead"],
   "verdict": "GOOD_DECISION" | "BAD_DECISION" | "NEUTRAL"
 }
-Generate realistic Indian market data. chartData must have 12+ data points. Use ₹ for currency.`,
+IMPORTANT RULES FOR chartData:
+- {date_context}
+- Use the ACTUAL year the user mentions in their question. If they say "last 6 months" or "this year", use the real current date above.
+- If the scenario is about a recent/current event, use dates from the current year.
+- If no specific time is mentioned, default to the most recent 12 months ending today.
+- chartData must have 12+ data points
+- Generate realistic Indian market data. Use ₹ for currency.`,
 
     'calm-mode': `You are the Calm Mode guardian for Invex AI. The user is emotionally reacting to market news. Rules:
 1. ALWAYS start with empathy. Acknowledge their fear first. ("I understand — watching numbers fall is genuinely uncomfortable.")
@@ -82,15 +99,25 @@ function parseWhatIfResponse(text: string): {
 // ─── Route handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
     try {
-        const { message, mode = 'default', context = {}, memoryContext = '' } = await req.json();
+        const { message, mode = 'default', context = {}, memoryContext = '', userRiskProfile = '' } = await req.json();
 
         // Auto-upgrade to calm mode if panic detected
         const effectiveMode = detectPanicTrigger(message) ? 'calm-mode' : mode;
 
+        // Inject real current date — AI is always date-aware
+        const dateContext = getCurrentDateContext();
+
         let systemPrompt = SYSTEM_PROMPTS[effectiveMode] || SYSTEM_PROMPTS.default;
         systemPrompt = systemPrompt
             .replace('{analysis_context}', context.analysisReport || 'No recent analysis loaded.')
-            .replace('{memory_context}', memoryContext || 'No saved memory yet.');
+            .replace('{memory_context}', memoryContext || 'No saved memory yet.')
+            .replace('{date_context}', dateContext);
+
+        // Prepend date + risk profile context to ALL prompts
+        const profileBlock = userRiskProfile
+            ? `[USER RISK PROFILE] ${userRiskProfile}`
+            : '';
+        systemPrompt = `[SYSTEM CONTEXT] ${dateContext}\n${profileBlock}\n\n${systemPrompt}`;
 
         // Build the full prompt for the LangGraph chat agent
         const fullPrompt = `${systemPrompt}\n\n---\nUser: ${message}`;

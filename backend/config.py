@@ -23,7 +23,6 @@ class Settings(BaseSettings):
     # CrewAI / LLM keys
     OPENAI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
-    ELEVENLABS_API_KEY: str | None = None
     MISTRAL_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None

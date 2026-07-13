@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { Briefcase, Crosshair, Target, Search, Diamond, TrendingUp, BarChart3, Bell, MessageSquare, Settings, LogOut, Eye, Mic } from 'lucide-react';
+import { Briefcase, Search, Diamond, TrendingUp, BarChart3, Bell, MessageSquare, Settings, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -12,8 +12,6 @@ const NAV_MAIN = [
 
 const NAV_TOOLS = [
     { icon: Search, label: 'Screener', href: '/screener' },
-    { icon: Eye,    label: 'Insider Activity', href: '/insider' },
-    { icon: Mic,    label: 'Earnings AI', href: '/earnings' },
 ];
 
 const NAV_OTHER = [

@@ -270,6 +270,7 @@ export default function ChatPage() {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [analysisCtx, setAnalysisCtx] = useState('');
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [riskProfile, setRiskProfile] = useState<Record<string, unknown> | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -289,6 +290,19 @@ export default function ChatPage() {
         setMessages(active.messages);
         const lastAI = [...active.messages].reverse().find(m => m.role === 'ai');
         if (lastAI) setMode(lastAI.mode);
+
+        // ── Fetch risk profile for personalised AI responses ────────────────────
+        const uid = localStorage.getItem('invex_user_id') || '0000-user';
+        fetch(`/api/v1/risk/profile/${uid}`)
+            .then(r => r.json())
+            .then(d => {
+                if (d.exists && d.user_context) {
+                    setRiskProfile(d.user_context);
+                    // Also update local memory so AI knows latest label
+                    setMemory(prev => prev ? { ...prev, riskProfile: d.user_context.risk_label || prev.riskProfile } : prev);
+                }
+            })
+            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -376,7 +390,12 @@ export default function ChatPage() {
                 body: JSON.stringify({
                     message: msg, mode,
                     context: { analysisReport: analysisCtx, userName: memory?.name, sessionId: activeSessionId },
-                    memoryContext: memory ? `Name: ${memory.name}, Risk: ${memory.riskProfile}, Goal: ${memory.goals}, Past questions: ${memory.pastQuestions.slice(-5).join('; ')}` : '',
+                    memoryContext: memory
+                        ? `Name: ${memory.name}, Risk profile: ${memory.riskProfile}, Goal: ${memory.goals}, Past questions: ${memory.pastQuestions.slice(-5).join('; ')}`
+                        : '',
+                    userRiskProfile: riskProfile   // ← full risk profile for personalised AI
+                        ? `Risk label: ${riskProfile.risk_label}, Score: ${riskProfile.risk_score}, Horizon: ${riskProfile.horizon_years} years, Loss tolerance: ${riskProfile.loss_tolerance_pct}%, Preferred sectors: ${(riskProfile.preferred_sectors as string[] || []).join(', ') || 'none'}, Excluded: ${(riskProfile.excluded_sectors as string[] || []).join(', ') || 'none'}`
+                        : '',
                 }),
             });
             const data = await res.json();

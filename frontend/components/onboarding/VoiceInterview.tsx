@@ -1,20 +1,19 @@
 'use client';
 
 /**
- * components/onboarding/VoiceInterview.tsx  (v4 — Immersive Neon UI)
+ * components/onboarding/VoiceInterview.tsx
  *
- * Immersive, full-bleed Voice UI mirroring the Dribbble neon aesthetic.
- * Black minimalist layout, centered elegant typography, enormous layered 
- * waveform visualizer, and floating bottom controls.
+ * Voice Interview using browser Web Speech API (SpeechRecognition + SpeechSynthesis).
+ * Calls /api/v1/risk/interview/turn for each Q&A turn.
+ * When complete, POSTs the extracted profile to /api/v1/risk/profile/{userId}.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Send, Type, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, AlertTriangle, CheckCircle } from 'lucide-react';
 import { WaveformVisualizer } from './WaveformVisualizer';
-import { DimensionOrbs }      from './DimensionOrbs';
 
-type Phase = 'intro' | 'mic_check' | 'interview' | 'complete';
+type Phase = 'intro' | 'interview' | 'saving' | 'complete' | 'error';
 
 interface Props {
   userId:        string;
@@ -22,126 +21,44 @@ interface Props {
   priorProfile?: Record<string, unknown> | null;
 }
 
-const SILENCE_THRESHOLD   = 0.01;
-const SILENCE_DURATION_MS = 2500;
-const BACKEND             = '/api/v1';
+const BACKEND = '/api/v1';
 
-export function VoiceInterview({ userId, isRetake = false, priorProfile = null }: Props) {
-  // Session
-  const [sessionId,       setSessionId]       = useState('');
-  const [phase,           setPhase]           = useState<Phase>('intro');
-
-  // Interview
-  const [question,        setQuestion]        = useState('');
-  const [isSending,       setIsSending]       = useState(false);
-  const [stream,          setStream]          = useState<MediaStream | null>(null);
-  const [audioLevel,      setAudioLevel]      = useState(0);
-  const [isRecording,     setIsRecording]     = useState(false);
-  
-  // AI State
-  const [aiTyping,        setAiTyping]        = useState(false);
-  const [aiAudioLevel,    setAiAudioLevel]    = useState(0);
-  
-  // Text mode fallback
-  const [textMode,        setTextMode]        = useState(false);
-  const [textAnswer,      setTextAnswer]      = useState('');
-
-  const [error, setError] = useState<string | null>(null);
-
-  // Refs
-  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
-  const chunksRef         = useRef<Blob[]>([]);
-  const audioCtxRef       = useRef<AudioContext | null>(null);
-  const analyserRef       = useRef<AnalyserNode | null>(null);
-  const silenceCheckRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const ampRafRef         = useRef<number>(0);
-  const aiAudioRef        = useRef<HTMLAudioElement | null>(null);
-
-  // Mock AI audio level for waveform
-  const startAIMockAmp = useCallback(() => {
-    let t = 0;
-    const tick = () => {
-      t += 0.08;
-      setAiAudioLevel(Math.abs(Math.sin(t * 3.7) * 0.6 + Math.sin(t * 1.2) * 0.4));
-      ampRafRef.current = requestAnimationFrame(tick);
-    };
-    ampRafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(ampRafRef.current);
-  }, []);
-
-  /**
-   * Speak text: tries /risk/tts (Murf) first, falls back to browser SpeechSynthesis.
-   * Drives the waveform animation while audio plays.
-   */
-  const speakText = useCallback(async (text: string) => {
-    // Stop any previous audio
-    if (aiAudioRef.current) {
-      aiAudioRef.current.pause();
-      aiAudioRef.current = null;
-    }
-    window.speechSynthesis?.cancel();
-
-    setAiTyping(true);
-    const stopAmp = startAIMockAmp();
-
-    const finish = () => {
-      stopAmp();
-      cancelAnimationFrame(ampRafRef.current);
-      setAiTyping(false);
-      setAiAudioLevel(0);
-    };
-
-    // Try Murf via backend /tts
-    try {
-      const res = await fetch(`${BACKEND}/risk/tts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (res.ok) {
-        const blob = await res.blob();
-        if (blob.size > 0) {
-          const url = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          aiAudioRef.current = audio;
-          audio.onended = finish;
-          audio.onerror = () => {
-            // Fall through to browser TTS on playback error
-            finish();
-            browserSpeak(text);
-          };
-          await audio.play();
-          return; // success — exit early
-        }
-      }
-    } catch {
-      // Network / API error — fall through
-    }
-
-    // Browser SpeechSynthesis fallback
-    browserSpeak(text, finish);
-  }, [startAIMockAmp]); // eslint-disable-line
-
-  function browserSpeak(text: string, onEnd?: () => void) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate  = 0.92;
-    utter.pitch = 1.05;
-    utter.volume = 1;
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v =>
-      /female|zira|samantha|karen|moira|tessa|fiona|victoria/i.test(v.name) && v.lang.startsWith('en')
-    ) || voices.find(v => v.lang.startsWith('en-GB')) || voices.find(v => v.lang.startsWith('en'));
-    if (preferred) utter.voice = preferred;
-    if (onEnd) utter.onend = onEnd;
-    window.speechSynthesis.speak(utter);
+// Browser Speech Recognition type shim
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
   }
+}
 
-  const startSession = useCallback(async () => {
-    setSessionId(userId + "_session");
-  }, [userId]);
+export function VoiceInterview({ userId, isRetake = false }: Props) {
+  const [phase,       setPhase]       = useState<Phase>('intro');
+  const [question,    setQuestion]    = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const [aiSpeaking,  setAiSpeaking]  = useState(false);
+  const [audioLevel,  setAudioLevel]  = useState(0);
+  const [turnCount,   setTurnCount]   = useState(0);
+  const [stream,      setStream]      = useState<MediaStream | null>(null);
+  const [error,       setError]       = useState<string | null>(null);
 
-  const startAudioLevelPoll = useCallback((analyser: AnalyserNode) => {
+  const stateRef        = useRef<Record<string, unknown>>({});
+  const recognitionRef  = useRef<any | null>(null);
+  const ampRafRef       = useRef<number>(0);
+  const transcriptRef   = useRef<string>('');
+  const silenceTimerRef = useRef<any>(null);
+  const shouldListenRef = useRef<boolean>(false);
+  const audioCtxRef     = useRef<AudioContext | null>(null);
+  const analyserRef     = useRef<AnalyserNode | null>(null);
+
+  // ── Audio level polling ──────────────────────────────────────────────────────
+  const startLevelPoll = useCallback((ms: MediaStream) => {
+    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
+    const ctx = audioCtxRef.current;
+    const source = ctx.createMediaStreamSource(ms);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyserRef.current = analyser;
     const buf = new Float32Array(analyser.fftSize);
     const poll = () => {
       analyser.getFloatTimeDomainData(buf);
@@ -152,221 +69,299 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
     poll();
   }, []);
 
-  const requestMic = useCallback(async () => {
+  // ── Browser TTS ──────────────────────────────────────────────────────────────
+  const speak = useCallback((text: string, onEnd?: () => void) => {
+    window.speechSynthesis?.cancel();
+    setAiSpeaking(true);
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate  = 0.92;
+    utter.pitch = 1.05;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v =>
+      /female|zira|samantha|karen|moira|tessa|fiona/i.test(v.name) && v.lang.startsWith('en')
+    ) || voices.find(v => v.lang.startsWith('en-GB')) || voices.find(v => v.lang.startsWith('en'));
+    if (preferred) utter.voice = preferred;
+    utter.onend = () => { setAiSpeaking(false); onEnd?.(); };
+    utter.onerror = () => { setAiSpeaking(false); onEnd?.(); };
+    window.speechSynthesis.speak(utter);
+  }, []);
+
+  // ── Submit one text turn to backend ─────────────────────────────────────────
+  const submitTurn = useCallback(async (userText: string) => {
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setStream(s); 
-      setPhase('interview');
-      await startSession();
-      const greeting = "Hello, let's start the risk profiling interview. What's your investment goal?";
-      setQuestion(greeting);
-      // Speak the greeting immediately
-      speakText(greeting);
-    } catch {
-      setError('Microphone denied. Use text mode instead.');
-    }
-  }, [startSession, speakText]);
-
-  const startSilenceDetection = useCallback((ms: MediaStream) => {
-    if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-    const ctx      = audioCtxRef.current;
-    const source   = ctx.createMediaStreamSource(ms);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
-    analyserRef.current = analyser;
-    startAudioLevelPoll(analyser);
-    
-    const buf = new Float32Array(analyser.fftSize);
-    let silent = 0;
-    silenceCheckRef.current = setInterval(() => {
-      analyserRef.current?.getFloatTimeDomainData(buf);
-      const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
-      if (rms < SILENCE_THRESHOLD) { 
-          silent += 100; 
-          if (silent >= SILENCE_DURATION_MS) { 
-              silent = 0; 
-              stopAndSubmit(); 
-          } 
-      }
-      else silent = 0;
-    }, 100);
-  }, [startAudioLevelPoll]); // eslint-disable-line
-
-  const startRecording = useCallback(() => {
-    if (!stream || isRecording || isSending) return;
-    chunksRef.current = [];
-    const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-    mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    mr.start(250);
-    mediaRecorderRef.current = mr;
-    setIsRecording(true);
-    startSilenceDetection(stream);
-  }, [stream, isRecording, isSending, startSilenceDetection]);
-
-  const stopAndSubmit = useCallback(() => {
-    if (silenceCheckRef.current) clearInterval(silenceCheckRef.current);
-    cancelAnimationFrame(ampRafRef.current);
-    setAudioLevel(0);
-    
-    const mr = mediaRecorderRef.current;
-    if (!mr || mr.state === 'inactive') return;
-    
-    mr.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-      await submitVoicePipeline(blob);
-    };
-    mr.stop(); 
-    setIsRecording(false);
-  }, []); // eslint-disable-line
-
-  const submitVoicePipeline = useCallback(async (audioBlob: Blob) => {
-    if (isSending) return;
-    setIsSending(true); 
-    setError(null);
-    setAiTyping(true);
-    
-    try {
-      const form = new FormData();
-      form.append('audio', audioBlob, 'answer.webm');
-      form.append('session_id', sessionId);
-      
-      const response = await fetch(`${BACKEND}/risk/voice`, {
-        method: "POST",
-        body: form
+      const res = await fetch(`${BACKEND}/risk/interview/turn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_text:  userText,
+          session_id: userId + '_session',
+          state:      stateRef.current,
+        }),
       });
-      
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
-      
-      // Check content type: JSON (reply_text) or audio blob
-      const contentType = response.headers.get('content-type') || '';
-      
-      if (contentType.includes('application/json')) {
-        // Backend returned JSON with reply_text
-        const data = await response.json();
-        const replyText = data.reply_text || data.text || '';
-        if (replyText) {
-          setQuestion(replyText);
-          setAiTyping(false);
-          await speakText(replyText);
-        } else {
-          setAiTyping(false);
-        }
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      const data = await res.json();
+
+      stateRef.current = data.state || stateRef.current;
+      setTurnCount(c => c + 1);
+
+      if (data.is_complete && data.profile) {
+        // Interview complete — save profile
+        setPhase('saving');
+        speak(data.reply);
+        await saveProfile(data.profile);
       } else {
-        // Backend returned audio blob (Murf MP3)
-        const audioResultBlob = await response.blob();
-        setAiTyping(false); // speakText will re-set aiTyping
-        
-        if (audioResultBlob.size > 0) {
-          const audioUrl = URL.createObjectURL(audioResultBlob);
-          const audio = new Audio(audioUrl);
-          aiAudioRef.current = audio;
-          
-          const stopAmp = startAIMockAmp();
-          setAiTyping(true);
-          
-          audio.onended = () => {
-            stopAmp();
-            cancelAnimationFrame(ampRafRef.current);
-            setAiTyping(false);
-            setAiAudioLevel(0);
-          };
-          
-          // Try to play; if autoplay blocked, fall back to browser TTS
-          audio.play().catch(() => {
-            stopAmp();
-            setAiTyping(false);
-            browserSpeak(question);
-          });
+        setQuestion(data.reply || '');
+        speak(data.reply || '');
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || 'Something went wrong');
+    }
+  }, [userId, speak]); // eslint-disable-line
+
+  // ── Save profile to backend ──────────────────────────────────────────────────
+  const saveProfile = useCallback(async (profile: Record<string, unknown>) => {
+    try {
+      const res = await fetch(`${BACKEND}/risk/profile/${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: stateRef.current?.answers || {}, ...profile }),
+      });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+      setPhase('complete');
+    } catch (e: unknown) {
+      setError((e as Error).message || 'Failed to save profile');
+      setPhase('error');
+    }
+  }, [userId]);
+
+  // ── Start listening (SpeechRecognition) ──────────────────────────────────────
+  const stopListening = useCallback(() => {
+    shouldListenRef.current = false;
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    clearTimeout(silenceTimerRef.current);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (shouldListenRef.current) return;
+    shouldListenRef.current = true;
+    
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setError('SpeechRecognition not supported in this browser. Try Chrome.'); return; }
+
+    try { recognitionRef.current?.stop(); } catch(e) {}
+
+    const rec = new SR();
+    rec.lang = 'en-IN';
+    rec.continuous = true;
+    rec.interimResults = false;
+    recognitionRef.current = rec;
+
+    rec.onstart  = () => setIsListening(true);
+    rec.onend    = () => {
+      setIsListening(false);
+      if (shouldListenRef.current) {
+        try { rec.start(); } catch(e) {}
+      }
+    };
+    rec.onerror  = (e: any) => { 
+      if (e.error !== 'no-speech') {
+        setIsListening(false);
+        setError(`Mic error: ${e.error}`);
+      }
+    };
+    rec.onresult = (e: any) => {
+      let newlyFinal = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          newlyFinal += e.results[i][0].transcript + ' ';
         }
       }
       
-    } catch (e: any) {
-      setError(e.message || 'Failed to submit voice.');
-      setAiTyping(false);
-    } finally {
-      setIsSending(false);
+      if (newlyFinal.trim()) {
+        transcriptRef.current += newlyFinal;
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+           const finalAns = transcriptRef.current.trim();
+           if (finalAns) {
+              stopListening();
+              submitTurn(finalAns);
+              transcriptRef.current = '';
+           }
+        }, 2000);
+      }
+    };
+    
+    try { rec.start(); } catch(e) {}
+  }, [submitTurn, stopListening]);
+
+  useEffect(() => {
+    if (phase === 'interview' && !aiSpeaking) {
+      startListening();
+    } else {
+      stopListening();
     }
-  }, [sessionId, isSending, startAIMockAmp, speakText, question]);
-  
+  }, [phase, aiSpeaking, startListening, stopListening]);
+
+  // ── Start interview ──────────────────────────────────────────────────────────
+  const startInterview = useCallback(async () => {
+    setError(null);
+    try {
+      const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setStream(ms);
+      startLevelPoll(ms);
+      setPhase('interview');
+      const opening = "Hello! I'm your Invex AI financial advisor. Let's build your personalised risk profile. What is your primary investment goal right now?";
+      setQuestion(opening);
+      stateRef.current = { currentQuestion: "What is your primary investment goal right now?" };
+      speak(opening);
+    } catch {
+      setError('Microphone access denied. Please allow microphone and try again.');
+    }
+  }, [speak, startLevelPoll]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cancelAnimationFrame(ampRafRef.current);
+      window.speechSynthesis?.cancel();
+      recognitionRef.current?.stop();
+      stream?.getTracks().forEach(t => t.stop());
+    };
+  }, [stream]);
+
+  // ── Redirect on complete ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (phase === 'complete') {
+      setTimeout(() => { window.location.href = '/dashboard'; }, 3000);
+    }
+  }, [phase]);
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '5vh 5vw' }}>
       <AnimatePresence mode="wait">
-        {(phase === 'intro') && (
-          <motion.div 
+
+        {/* ── INTRO ── */}
+        {phase === 'intro' && (
+          <motion.div
+            key="intro"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
             style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
           >
-            <h1 style={{ fontSize: '36px', fontWeight: 700, color: '#fff', marginBottom: '16px' }}>
-              Voice Interview System
+            <h1 style={{ fontSize: '36px', fontWeight: 700, color: '#fff', marginBottom: '12px' }}>
+              {isRetake ? 'Retake Risk Interview' : 'Risk Profile Interview'}
             </h1>
-            <button 
-              onClick={requestMic}
+            <p style={{ color: '#9CA3AF', fontSize: '16px', maxWidth: '480px', marginBottom: '40px' }}>
+              Answer 5–7 short questions via voice. Our AI will build your personalised risk profile in under 3 minutes.
+            </p>
+            <button
+              onClick={startInterview}
               style={{
-                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-                color: '#fff', borderRadius: '30px', padding: '16px 36px', fontSize: '16px', fontWeight: 600,
-                cursor: 'pointer', backdropFilter: 'blur(10px)', transition: 'all 0.2s', display: 'flex', gap: '10px'
+                background: '#C8F135', color: '#000', fontWeight: 700,
+                borderRadius: '30px', padding: '16px 40px', fontSize: '16px',
+                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
               }}
             >
-              <Mic size={18} /> Start Session
+              <Mic size={18} /> Start Interview
             </button>
             {error && <ErrCard msg={error} style={{ marginTop: '24px' }} />}
           </motion.div>
         )}
 
+        {/* ── INTERVIEW ── */}
         {phase === 'interview' && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}
+            key="interview"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
           >
-            {/* Center Area: Enormous Waveform */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              
-              <div style={{ maxWidth: '800px', textAlign: 'center', marginBottom: '60px', minHeight: '80px' }}>
+              {/* Progress */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '32px' }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{
+                    width: '32px', height: '4px', borderRadius: '2px',
+                    background: i < turnCount ? '#C8F135' : 'rgba(255,255,255,0.15)',
+                    transition: 'background 0.3s',
+                  }} />
+                ))}
+              </div>
+
+              {/* Question display */}
+              <div style={{ maxWidth: '700px', textAlign: 'center', marginBottom: '48px', minHeight: '80px' }}>
                 <AnimatePresence mode="wait">
-                  {isSending ? (
-                     <motion.p style={{ fontSize: '32px', color: 'rgba(255,255,255,0.4)', fontWeight: 300 }}>Processing...</motion.p>
-                  ) : aiTyping ? (
-                     <motion.p style={{ fontSize: '32px', color: '#fff', fontWeight: 400 }}>Assistant is speaking...</motion.p>
-                  ) : (
-                     <motion.p style={{ fontSize: '32px', color: '#fff', fontWeight: 400 }}>{question}</motion.p>
-                  )}
+                  <motion.p
+                    key={question}
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    style={{ fontSize: '28px', color: aiSpeaking ? '#C8F135' : '#fff', fontWeight: 400, lineHeight: 1.4 }}
+                  >
+                    {aiSpeaking ? 'Speaking…' : question}
+                  </motion.p>
                 </AnimatePresence>
               </div>
 
-              {/* Immersive Waveform spanning wide */}
-              <div style={{ width: '100%', maxWidth: '1200px' }}>
-                 <WaveformVisualizer 
-                   stream={stream} 
-                   isRecording={isRecording} 
-                   aiSpeaking={aiTyping} 
-                   audioLevel={aiTyping ? aiAudioLevel : audioLevel} 
-                 />
+              {/* Waveform */}
+              <div style={{ width: '100%', maxWidth: '900px' }}>
+                <WaveformVisualizer stream={stream} isRecording={isListening} aiSpeaking={aiSpeaking} audioLevel={isListening ? audioLevel : (aiSpeaking ? 0.4 : 0)} />
               </div>
-
             </div>
 
-            {/* Bottom Controls */}
-            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '2vh' }}>
-                <button 
-                  onClick={isRecording ? stopAndSubmit : startRecording}
-                  disabled={!isRecording && (isSending || aiTyping || !question)}
-                  style={{ 
-                    width: '80px', height: '80px', borderRadius: '50%', 
-                    background: isRecording ? '#FF0844' : (isSending || aiTyping || !question) ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.1)', 
-                    border: '1px solid', borderColor: isRecording ? '#FF0844' : 'rgba(255,255,255,0.2)',
-                    color: isRecording ? '#fff' : (isSending || aiTyping || !question) ? 'rgba(255,255,255,0.2)' : '#fff', 
-                    cursor: (isSending || aiTyping || !question) && !isRecording ? 'not-allowed' : 'pointer', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)', transition: 'all 0.3s',
-                    boxShadow: isRecording ? '0 0 30px rgba(255,8,68,0.4)' : 'none'
-                  }}
-                >
-                  {isRecording ? <MicOff size={24} /> : <Mic size={24} />}
-                </button>
+            {/* Status indicator */}
+            <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: '2vh', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: isListening ? '#C8F135' : '#6B7280', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {isListening ? <><Mic size={16} /> Listening... speak your answer</> : aiSpeaking ? 'AI speaking...' : 'Processing...'}
+              </span>
             </div>
-            {error && <ErrCard msg={error} style={{ position: 'absolute', top: '80px', left: '50%', transform: 'translateX(-50%)' }} />}
+            {error && <ErrCard msg={error} style={{ textAlign: 'center', margin: '0 auto 16px' }} />}
           </motion.div>
         )}
+
+        {/* ── SAVING ── */}
+        {phase === 'saving' && (
+          <motion.div
+            key="saving"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}
+          >
+            <motion.div
+              animate={{ scale: [1, 1.15, 1], opacity: [0.4, 0.8, 0.4] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#C8F135', filter: 'blur(12px)' }}
+            />
+            <p style={{ color: '#fff', fontSize: '20px', fontWeight: 500 }}>Building your risk profile…</p>
+            <p style={{ color: '#6B7280', fontSize: '14px' }}>This takes just a moment</p>
+          </motion.div>
+        )}
+
+        {/* ── COMPLETE ── */}
+        {phase === 'complete' && (
+          <motion.div
+            key="complete"
+            initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px', textAlign: 'center' }}
+          >
+            <CheckCircle size={56} color="#C8F135" />
+            <h2 style={{ fontSize: '28px', fontWeight: 700, color: '#fff' }}>Risk Profile Saved!</h2>
+            <p style={{ color: '#9CA3AF', fontSize: '15px', maxWidth: '400px' }}>
+              Your personalised risk profile is ready. Redirecting you to the dashboard…
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── ERROR ── */}
+        {phase === 'error' && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', textAlign: 'center' }}
+          >
+            <ErrCard msg={error || 'Something went wrong'} />
+            <button onClick={() => setPhase('intro')} style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', cursor: 'pointer', fontSize: '14px' }}>
+              Try Again
+            </button>
+          </motion.div>
+        )}
+
       </AnimatePresence>
     </div>
   );
@@ -374,9 +369,10 @@ export function VoiceInterview({ userId, isRetake = false, priorProfile = null }
 
 function ErrCard({ msg, style: s }: { msg: string; style?: React.CSSProperties }) {
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 20px', display: 'flex', gap: '10px', alignItems: 'center', backdropFilter: 'blur(10px)', ...s }}>
+      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 20px', display: 'flex', gap: '10px', alignItems: 'center', backdropFilter: 'blur(10px)', ...s }}
+    >
       <AlertTriangle size={16} color="#EF4444" />
       <span style={{ fontSize: '14px', color: '#FCA5A5' }}>{msg}</span>
     </motion.div>

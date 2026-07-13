@@ -7,7 +7,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from config import get_settings, push_llm_keys_to_environ
-from routers import auth_router, agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, earnings_router, research_router, chat_router, risk_router, insider_router
+from routers import auth_router, agent_router, session_router, document_router, market_router, news_router, portfolio_router, alert_router, onboarding_router, research_router, chat_router, risk_router
 from models.database import engine, Base
 from models.mongo import close_mongo
 from middleware.request_logger import RequestLoggingMiddleware
@@ -87,11 +87,9 @@ app.include_router(news_router.router,       prefix="/api/v1")
 app.include_router(portfolio_router.router,  prefix="/api/v1")
 app.include_router(alert_router.router,      prefix="/api/v1")
 app.include_router(onboarding_router.router, prefix="/api/v1")
-app.include_router(earnings_router.router,   prefix="/api/v1")
 app.include_router(research_router.router,   prefix="/api/v1")
 app.include_router(chat_router.router,       prefix="/api/v1")
 app.include_router(risk_router.router,       prefix="/api/v1")
-app.include_router(insider_router.router,    prefix="/api/v1")
 
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health")

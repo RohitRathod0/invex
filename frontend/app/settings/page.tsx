@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Globe, Shield, FileText, Bell, Lock, Activity, ChevronRight, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Globe, Shield, FileText, Bell, Lock, Activity, ChevronRight, Save, Loader2, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { apiGet, apiPost, apiPut } from '@/lib/apiClient';
 import { getUserProfile, setUserProfile, logout } from '@/lib/auth';
 
@@ -69,6 +69,8 @@ export default function SettingsPage() {
     const [riskLabel, setRiskLabel] = useState('');
     const [riskScore, setRiskScore] = useState<number | null>(null);
     const [riskLoading, setRiskLoading] = useState(false);
+    const [riskUserId, setRiskUserId] = useState('');
+    const [downloading, setDownloading] = useState(false);
 
     // Password state
     const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
@@ -108,6 +110,7 @@ export default function SettingsPage() {
             const meRes = await apiGet('/api/v1/auth/me');
             if (!meRes.ok) return;
             const me = await meRes.json();
+            setRiskUserId(me.user_id || '');
             const res = await apiGet(`/api/v1/risk/profile/${me.user_id}`);
             if (res.ok) {
                 const d = await res.json();
@@ -119,6 +122,26 @@ export default function SettingsPage() {
         } catch { /* ignore */ } 
         finally { setRiskLoading(false); }
     }, []);
+
+    const downloadProfile = useCallback(async () => {
+        if (!riskUserId) return;
+        setDownloading(true);
+        try {
+            const res = await apiGet(`/api/v1/risk/profile/${riskUserId}/download`);
+            if (!res.ok) throw new Error('No profile found');
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `risk_profile_${riskUserId}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e: unknown) {
+            alert((e as Error).message || 'Download failed');
+        } finally {
+            setDownloading(false);
+        }
+    }, [riskUserId]);
 
     useEffect(() => { fetchProfile(); }, [fetchProfile]);
     useEffect(() => { if (activeTab === 'risk') fetchRisk(); }, [activeTab, fetchRisk]);
@@ -332,7 +355,25 @@ export default function SettingsPage() {
                                             Risk Score: <strong style={{ color: '#fff' }}>{riskScore.toFixed(1)} / 100</strong>
                                         </p>
                                     )}
-                                    <p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>This profile governs recommendations made by our AI investment agents.</p>
+                                    <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0' }}>This profile governs recommendations made by our AI investment agents.</p>
+
+                                    {/* Download button */}
+                                    <button
+                                        onClick={downloadProfile}
+                                        disabled={downloading}
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                            background: 'rgba(200,241,53,0.1)', border: '1px solid rgba(200,241,53,0.3)',
+                                            color: '#C8F135', borderRadius: '8px', padding: '7px 14px',
+                                            fontSize: '13px', fontWeight: 500, cursor: downloading ? 'not-allowed' : 'pointer',
+                                            opacity: downloading ? 0.6 : 1, transition: 'all 0.15s',
+                                        }}
+                                    >
+                                        {downloading
+                                            ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Downloading…</>
+                                            : <><Download size={13} /> Download Profile JSON</>
+                                        }
+                                    </button>
                                 </div>
                             ) : (
                                 <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
