@@ -69,6 +69,7 @@ _chat_engine = None
 def get_chat_engine():
     global _chat_engine
     if _chat_engine is None:
+        # pyrefly: ignore [missing-import]
         from invex.engines.chat_engine import ChatEngine
         _chat_engine = ChatEngine()
     return _chat_engine
