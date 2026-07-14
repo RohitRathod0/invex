@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from config import get_settings
 from models.database import get_db
 from models.db_models import Alert, AuditLog
+from routers.auth_router import get_current_user
 from services.cache_manager import cache
 
 logger = logging.getLogger("invex.alerts")
@@ -245,12 +246,15 @@ def get_alerts(
     user_id: str,
     include_dismissed: bool = Query(False),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Return alerts for a user.
     By default, excludes status='dismissed' alerts.
     Pass ?include_dismissed=true to include the full history.
     """
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Alert not found")
     q = db.query(Alert).filter(Alert.user_id == user_id)
     if not include_dismissed:
         q = q.filter(Alert.status != "dismissed")
@@ -258,10 +262,14 @@ def get_alerts(
 
 
 @router.post("/alert", response_model=AlertOut)
-async def create_alert(body: AlertCreate, db: Session = Depends(get_db)):
+async def create_alert(
+    body: AlertCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     body.symbol = body.symbol.upper()
     alert = Alert(
-        user_id=body.user_id,
+        user_id=current_user["_id"],  # always from JWT; body.user_id is ignored
         symbol=body.symbol,
         condition=body.condition,
         target_price=body.target_price,
@@ -289,13 +297,17 @@ async def create_alert(body: AlertCreate, db: Session = Depends(get_db)):
 
 
 @router.delete("/alert/{alert_id}")
-async def delete_alert(alert_id: str, db: Session = Depends(get_db)):
+async def delete_alert(
+    alert_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Soft delete: sets status='dismissed' and is_active=False.
     The row is never removed so AuditLog entries remain linked.
     """
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
+    if not alert or alert.user_id != current_user["_id"]:
         raise HTTPException(status_code=404, detail="Alert not found")
 
     symbol = alert.symbol
@@ -322,6 +334,7 @@ async def check_alerts(
     user_id: str,
     background: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Check all active alerts for a user against live prices.
@@ -337,6 +350,8 @@ async def check_alerts(
     Email sends are dispatched as FastAPI background tasks so SMTP
     latency never blocks the price-check loop.
     """
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Alert not found")
     # ── Collect distinct symbols for this user's active alerts ───────────────
     active_alerts = (
         db.query(Alert)
@@ -533,7 +548,11 @@ async def check_alerts(
 # ---------- Audit timeline endpoint ----------
 
 @router.get("/alert/{alert_id}/audit", response_model=AlertAuditOut)
-def get_alert_audit(alert_id: str, db: Session = Depends(get_db)):
+def get_alert_audit(
+    alert_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Return the full lifecycle timeline for a single alert:
     - Alert state fields (created_at, approaching_notified_at,
@@ -543,7 +562,7 @@ def get_alert_audit(alert_id: str, db: Session = Depends(get_db)):
       → dismissed)
     """
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
+    if not alert or alert.user_id != current_user["_id"]:
         raise HTTPException(status_code=404, detail="Alert not found")
 
     log_rows = (

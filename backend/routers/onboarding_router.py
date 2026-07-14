@@ -6,6 +6,7 @@ import json
 
 from models.database import get_db
 from models.db_models import RiskProfile
+from routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
@@ -42,11 +43,16 @@ class ProfileOut(BaseModel):
         from_attributes = True
 
 @router.post("/profile", response_model=ProfileOut)
-def save_profile(body: ProfileCreate, db: Session = Depends(get_db)):
+def save_profile(
+    body: ProfileCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     score = compute_score(body.answers)
     label = get_label(score)
+    user_id = current_user["_id"]  # always from JWT; body.user_id is ignored
 
-    existing = db.query(RiskProfile).filter(RiskProfile.user_id == body.user_id).first()
+    existing = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
     if existing:
         existing.risk_score = score
         existing.risk_label = label
@@ -56,7 +62,7 @@ def save_profile(body: ProfileCreate, db: Session = Depends(get_db)):
         profile = existing
     else:
         profile = RiskProfile(
-            user_id=body.user_id,
+            user_id=user_id,
             risk_score=score,
             risk_label=label,
             answers=json.dumps(body.answers),
@@ -74,7 +80,13 @@ def save_profile(body: ProfileCreate, db: Session = Depends(get_db)):
     )
 
 @router.get("/profile/{user_id}")
-def get_profile(user_id: str, db: Session = Depends(get_db)):
+def get_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Profile not found")
     profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
     if not profile:
         return {"exists": False}

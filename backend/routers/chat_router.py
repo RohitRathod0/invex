@@ -41,11 +41,12 @@ import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
 from models.mongo import get_mongo_db
+from routers.auth_router import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -210,7 +211,10 @@ async def _save_conversation_turn(
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/message", response_model=ChatMessageResponse)
-async def chat_message(body: ChatMessageRequest):
+async def chat_message(
+    body: ChatMessageRequest,
+    current_user: dict = Depends(get_current_user),
+):
     """
     Main chat endpoint.
 
@@ -221,6 +225,14 @@ async def chat_message(body: ChatMessageRequest):
          so the conversation is readable in the DB.
       4. Return the AI reply and session_id to the caller.
     """
+    # If a session_id is provided, verify it belongs to the authenticated user
+    if body.session_id:
+        col = get_mongo_db()["chat_sessions"]
+        existing = await col.find_one({"session_id": body.session_id}, {"_id": 0, "user_id": 1})
+        if existing and existing.get("user_id") and existing["user_id"] != current_user["_id"]:
+            raise HTTPException(status_code=404, detail="Session not found")
+    # Force user_id from JWT; ignore body-supplied value
+    body.user_id = current_user["_id"]
     # 1. Session resolution
     session_doc = await _get_or_create_session(
         session_id=body.session_id,
@@ -274,12 +286,15 @@ async def chat_message(body: ChatMessageRequest):
 
 
 @router.post("/sessions", response_model=ChatSessionResponse)
-async def create_chat_session(body: CreateSessionRequest):
+async def create_chat_session(
+    body: CreateSessionRequest,
+    current_user: dict = Depends(get_current_user),
+):
     """Create a new chat session in MongoDB and return its details."""
     doc = await _get_or_create_session(
         session_id=None,
         user_name=body.user_name or "Invex User",
-        user_id=body.user_id,
+        user_id=current_user["_id"],  # always from JWT; body.user_id is ignored
     )
     return ChatSessionResponse(
         session_id=doc["session_id"],
@@ -295,12 +310,15 @@ async def create_chat_session(body: CreateSessionRequest):
 
 
 @router.get("/sessions/{session_id}", response_model=ChatSessionResponse)
-async def get_chat_session(session_id: str):
+async def get_chat_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Fetch a full chat session including all messages from MongoDB."""
     doc = await get_mongo_db()["chat_sessions"].find_one(
         {"session_id": session_id}, {"_id": 0}
     )
-    if not doc:
+    if not doc or doc.get("user_id") != current_user["_id"]:
         raise HTTPException(status_code=404, detail="Session not found")
     return ChatSessionResponse(
         session_id=doc["session_id"],
@@ -316,18 +334,18 @@ async def get_chat_session(session_id: str):
 
 
 @router.get("/sessions", response_model=List[ChatSessionResponse])
-async def list_chat_sessions(user_id: Optional[str] = None, limit: int = 30):
+async def list_chat_sessions(
+    user_id: Optional[str] = None,
+    limit: int = 30,
+    current_user: dict = Depends(get_current_user),
+):
     """
     List recent sessions sorted by last activity.
-    Pass ?user_id=<id> to filter by user.
+    Always filters to the authenticated user; user_id query param is ignored.
     """
-    query: Dict[str, Any] = {}
-    if user_id:
-        query["user_id"] = user_id
-
     cursor = (
         get_mongo_db()["chat_sessions"]
-        .find(query, {"_id": 0})
+        .find({"user_id": current_user["_id"]}, {"_id": 0})
         .sort("last_message_at", -1)
         .limit(limit)
     )
@@ -350,9 +368,15 @@ async def list_chat_sessions(user_id: Optional[str] = None, limit: int = 30):
 
 
 @router.delete("/sessions/{session_id}")
-async def delete_chat_session(session_id: str):
+async def delete_chat_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """Permanently delete a chat session and all its messages from MongoDB."""
-    result = await get_mongo_db()["chat_sessions"].delete_one({"session_id": session_id})
-    if result.deleted_count == 0:
+    doc = await get_mongo_db()["chat_sessions"].find_one(
+        {"session_id": session_id}, {"_id": 0, "user_id": 1}
+    )
+    if not doc or doc.get("user_id") != current_user["_id"]:
         raise HTTPException(status_code=404, detail="Session not found")
+    await get_mongo_db()["chat_sessions"].delete_one({"session_id": session_id})
     return {"deleted": True, "session_id": session_id}

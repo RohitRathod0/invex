@@ -12,13 +12,14 @@ import logging
 from datetime import datetime
 from typing import Optional, Any, Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from models.database import get_db
 from models.db_models import RiskProfile, RiskProfileHistory
+from routers.auth_router import get_current_user
 from services.profile_cache import get_cached_profile, set_cached_profile, invalidate_profile
 
 logger = logging.getLogger(__name__)
@@ -60,8 +61,14 @@ class InterviewTurnRequest(BaseModel):
 
 
 @router.get("/profile/{user_id}/needs_refresh", response_model=NeedsRefreshResponse)
-def check_needs_refresh(user_id: str, db: Session = Depends(get_db)):
+def check_needs_refresh(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Check if user needs to complete (or redo) the risk profile interview."""
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Profile not found")
     profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
     if not profile or not profile.last_updated:
         return NeedsRefreshResponse(needs_refresh=True)
@@ -76,11 +83,18 @@ def check_needs_refresh(user_id: str, db: Session = Depends(get_db)):
 # ── POST: Save / upsert risk profile after interview ──────────────────────────
 
 @router.post("/profile/{user_id}")
-def save_profile(user_id: str, body: SaveProfileRequest, db: Session = Depends(get_db)):
+def save_profile(
+    user_id: str,
+    body: SaveProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """
     Called by VoiceInterview when the interview completes.
     Upserts the RiskProfile row, archives to history, and updates the cache.
     """
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Profile not found")
     profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
 
     new_version = (profile.profile_version or 0) + 1 if profile else 1
@@ -150,8 +164,14 @@ def save_profile(user_id: str, body: SaveProfileRequest, db: Session = Depends(g
 # ── GET: Download risk profile as JSON ────────────────────────────────────────
 
 @router.get("/profile/{user_id}/download")
-def download_profile(user_id: str, db: Session = Depends(get_db)):
+def download_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Return the full risk profile as a downloadable JSON file."""
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Profile not found")
     profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
     if not profile:
         return JSONResponse(status_code=404, content={"detail": "No risk profile found"})
@@ -208,8 +228,14 @@ async def interview_turn(body: InterviewTurnRequest):
 # ── GET: Full profile (existing) ──────────────────────────────────────────────
 
 @router.get("/profile/{user_id}", response_model=ProfileResponse)
-def get_user_profile(user_id: str, db: Session = Depends(get_db)):
+def get_user_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     """Return the full user_context JSON for this user."""
+    if user_id != current_user["_id"]:
+        raise HTTPException(status_code=404, detail="Profile not found")
     cached = get_cached_profile(user_id)
     if cached:
         return ProfileResponse(exists=True, user_context=cached)
