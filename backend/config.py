@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     ENABLE_2FA: bool = True                                    # Toggle OTP requirement
     ENABLE_REQUEST_SIGNING: bool = False                       # Enable HMAC header verification
 
+    # Email / SMTP
+    SMTP_SERVER: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_USE_SSL: bool = False
+    SMTP_USE_STARTTLS: bool = True
+    SMTP_TIMEOUT_SECONDS: int = 30
+
     # CORS — explicit whitelist. Add prod domain here when deploying.
     # Dev ports: 5173 (Vite), 3000 (Next.js)
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000"

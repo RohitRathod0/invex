@@ -19,6 +19,8 @@ Routes:
 
 import uuid
 import logging
+import random
+import string
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -36,6 +38,7 @@ from security.jwt_handler import (
     clear_auth_cookies,
     REFRESH_COOKIE,
 )
+from utils.mail import send_otp_email
 
 logger = logging.getLogger("invex.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -52,6 +55,17 @@ class RegisterBody(BaseModel):
 class LoginBody(BaseModel):
     email:    str
     password: str
+
+
+class RequestOTPBody(BaseModel):
+    email: str = Field(..., min_length=5, max_length=254)
+    name: Optional[str] = Field(default=None, min_length=2, max_length=100)
+    password: Optional[str] = Field(default=None, min_length=6, max_length=128)
+
+
+class VerifyOTPBody(BaseModel):
+    email: str
+    otp: str
 
 
 class UserOut(BaseModel):
@@ -162,6 +176,118 @@ async def get_current_user(request: Request) -> dict:
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
+@router.post("/request-otp", status_code=200)
+async def request_otp(body: RequestOTPBody, request: Request):
+    """
+    Generate a 6-digit OTP, save it to DB, and send it via email.
+    If the user doesn't exist, we will create an account for them upon verification.
+    """
+    db = get_mongo_db()
+    email = body.email.strip().lower()
+    name = body.name.strip() if body.name and body.name.strip() else None
+    password_hash = hash_password(body.password) if body.password else None
+
+    # Generate 6-digit OTP
+    otp = "".join(random.choices(string.digits, k=6))
+    
+    # Store in otps collection with an expiration (5 minutes)
+    await db["otps"].update_one(
+        {"email": email},
+        {"$set": {
+            "otp": otp,
+            "expires_at": _utc_now() + timedelta(minutes=5),
+            "created_at": _utc_now(),
+            "name": name,
+            "password_hash": password_hash,
+        }},
+        upsert=True
+    )
+
+    # Send email
+    success = send_otp_email(email, otp)
+    if not success:
+        logger.error(f"Failed to send OTP to {email}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to send OTP email. Check SMTP settings and Gmail app password.",
+        )
+
+    return {"message": "If the email is valid, an OTP has been sent."}
+
+
+@router.post("/verify-otp", response_model=UserOut)
+async def verify_otp(body: VerifyOTPBody, request: Request, response: Response):
+    """
+    Verify the OTP. If valid, log the user in.
+    If the user does not exist, create their account now.
+    """
+    db = get_mongo_db()
+    email = body.email.strip().lower()
+    otp_submitted = body.otp.strip()
+
+    # Find OTP
+    otp_record = await db["otps"].find_one({"email": email})
+    if not otp_record or otp_record.get("otp") != otp_submitted:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP."
+        )
+
+    # Check expiration
+    if _utc_now() > otp_record["expires_at"]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="OTP has expired. Please request a new one."
+        )
+
+    # Clean up used OTP
+    await db["otps"].delete_one({"email": email})
+
+    # Check if user exists
+    user = await db["users"].find_one({"email": email, "deleted_at": None})
+    
+    if not user:
+        # Create new user automatically
+        user_id = str(uuid.uuid4())
+        # Use email prefix as a default name
+        default_name = otp_record.get("name") or email.split("@")[0].capitalize()
+        user = {
+            "_id":           user_id,
+            "name":          default_name,
+            "email":         email,
+            "password_hash": otp_record.get("password_hash") or "",
+            "status":        "ACTIVE",
+            "created_at":    _utc_now(),
+            "last_login":    _utc_now(),
+            "deleted_at":    None,
+        }
+        await db["users"].insert_one(user)
+        logger.info(f"New user registered via OTP: {email}")
+        await _audit(db, user_id, "REGISTER_OTP", request)
+    else:
+        if user.get("status") != "ACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is deactivated. Contact support.",
+            )
+        # Update last_login
+        await db["users"].update_one(
+            {"_id": user["_id"]},
+            {"$set": {"last_login": _utc_now()}}
+        )
+        user["last_login"] = _utc_now()
+        logger.info(f"User logged in via OTP: {email}")
+
+    session_id    = await _create_session(db, user["_id"], request)
+    access_token  = create_access_token(user["_id"], email, user["name"], session_id)
+    refresh_token = create_refresh_token(user["_id"], session_id)
+
+    set_auth_cookies(response, access_token, refresh_token)
+    await _audit(db, user["_id"], "LOGIN_OTP", request)
+
+    return _user_out(user)
+
 
 @router.post("/register", response_model=UserOut, status_code=201)
 async def register(body: RegisterBody, request: Request, response: Response):

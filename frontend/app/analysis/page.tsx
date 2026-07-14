@@ -137,7 +137,7 @@ export default function AnalysisPage() {
 
             // Bypass Next.js API rewrite to prevent stream buffering in development
             const backendUrl = process.env.NODE_ENV === 'development' 
-                ? 'http://localhost:8000/api/v1/agents/run/stream'
+                ? 'http://127.0.0.1:8000/api/v1/agents/run/stream'
                 : '/api/v1/agents/run/stream';
 
             const rr = await fetch(backendUrl, {

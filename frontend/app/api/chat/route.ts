@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
         const fullPrompt = `${systemPrompt}\n\n---\nUser: ${message}`;
 
         // Call the backend agent endpoint
-        const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+        const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000';
 
         // First create/get a session (MongoDB-backed)
         let sessionId = context.sessionId;
