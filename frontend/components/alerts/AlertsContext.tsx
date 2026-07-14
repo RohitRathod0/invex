@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { getUserId } from '@/lib/auth';
 
-const USER_ID = '0000-user';
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
 
 export interface TriggeredAlert {
@@ -79,7 +79,9 @@ export function AlertsProvider({ children }: { children: React.ReactNode }) {
 
     const checkAlerts = useCallback(async () => {
         try {
-            const res = await fetch(`/api/v1/alerts/check/${USER_ID}`, { method: 'POST' });
+            const userId = getUserId();
+            if (!userId) return;
+            const res = await fetch(`/api/v1/alerts/check/${userId}`, { method: 'POST' });
             if (!res.ok) return;
             const data = await res.json();
             const newlyTriggered: TriggeredAlert[] = (data.triggered ?? []).filter(

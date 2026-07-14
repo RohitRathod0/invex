@@ -11,6 +11,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VoiceInterview } from '@/components/onboarding/VoiceInterview';
+import { getUserId } from '@/lib/auth';
 
 type CheckResult = {
   needs_refresh: boolean;
@@ -23,7 +24,11 @@ export default function OnboardingPage() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const userId = localStorage.getItem('invex_user_id') || '0000-user';
+    const userId = getUserId();
+    if (!userId) {
+      window.location.href = '/login';
+      return;
+    }
     (async () => {
       try {
         const refreshRes  = await fetch(`/api/v1/risk/profile/${userId}/needs_refresh`);
@@ -65,7 +70,7 @@ export default function OnboardingPage() {
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
         >
           <VoiceInterview
-            userId={typeof window !== 'undefined' ? (localStorage.getItem('invex_user_id') || '0000-user') : '0000-user'}
+            userId={getUserId() || ''}
             isRetake={status.is_retake}
             priorProfile={status.prior_profile}
           />

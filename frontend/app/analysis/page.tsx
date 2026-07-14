@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUpRight, ArrowDownRight, RefreshCw, Bot, Loader2, Play, FileText, Download, CheckCircle, ChevronDown, BarChart3, Shield, Globe2, Banknote, TrendingUp, Zap } from 'lucide-react';
+import { getUserId } from '@/lib/auth';
 
 type Ticker = { label: string; value: string; change: string; up: boolean };
 type Log = { t: string; msg: string; kind: 'info' | 'think' | 'done' | 'err' };
@@ -62,7 +63,8 @@ export default function AnalysisPage() {
 
     // ── Fetch risk profile on mount and pre-fill form ───────────────────────
     useEffect(() => {
-        const uid = localStorage.getItem('invex_user_id') || '0000-user';
+        const uid = getUserId();
+        if (!uid) return;
         setUserId(uid);
         (async () => {
             try {

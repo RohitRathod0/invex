@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Sparkles, X, ShieldCheck, RefreshCw } from 'lucide-react';
 import { formatRiskLabel, riskLabelColor } from '@/lib/userContext';
+import { getUserId } from '@/lib/auth';
 
 export const OnboardingBanner = () => {
     const [state, setState] = useState<'loading' | 'missing' | 'stale' | 'fresh' | 'hidden'>('loading');
@@ -19,7 +20,11 @@ export const OnboardingBanner = () => {
     const [dismissed, setDismissed] = useState(false);
 
     useEffect(() => {
-        const userId = localStorage.getItem('invex_user_id') || '0000-user';
+        const userId = getUserId();
+        if (!userId) {
+            setState('hidden');
+            return;
+        }
 
         (async () => {
             try {

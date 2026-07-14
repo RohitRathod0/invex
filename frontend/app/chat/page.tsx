@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import ModeSelector, { MODES as PremiumModes } from '@/components/chat/ModeSelector';
+import { getUserId } from '@/lib/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Mode = 'agent-debrief' | 'news-radar' | 'what-if' | 'calm-mode' | 'memory' | 'default';
@@ -292,7 +293,8 @@ export default function ChatPage() {
         if (lastAI) setMode(lastAI.mode);
 
         // ── Fetch risk profile for personalised AI responses ────────────────────
-        const uid = localStorage.getItem('invex_user_id') || '0000-user';
+        const uid = getUserId();
+        if (!uid) return;
         fetch(`/api/v1/risk/profile/${uid}`)
             .then(r => r.json())
             .then(d => {

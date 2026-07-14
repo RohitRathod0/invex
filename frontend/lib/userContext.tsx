@@ -55,7 +55,12 @@ export function UserContextProvider({ children }: { children: React.ReactNode })
     const fetchProfile = useCallback(async () => {
         setLoading(true);
         try {
-            const userId = getUserId() || '0000-user'; // fallback for dev or unauthenticated
+            const userId = getUserId();
+            if (!userId) {
+                setProfile(null);
+                setLoading(false);
+                return;
+            }
 
             // Use the authenticated wrapper instead of raw fetch
             const res = await apiGet(`/api/v1/risk/profile/${userId}`);
