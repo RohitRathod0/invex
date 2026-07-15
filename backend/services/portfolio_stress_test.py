@@ -1,6 +1,5 @@
 import numpy as np
-import pandas as pd
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 class PortfolioStressTester:
     """
@@ -72,14 +71,3 @@ class PortfolioStressTester:
             'sampled_paths': sampled_paths # List of 5 lists of daily values for charting
         }
 
-    @staticmethod
-    def what_if_scenario(portfolio_beta: float, market_shock_pct: float) -> Dict[str, Any]:
-        """
-        Simple What-If: 'If the market crashes by X%, what happens to my portfolio?'
-        """
-        expected_impact = portfolio_beta * market_shock_pct
-        return {
-            'scenario_market_shock_pct': market_shock_pct,
-            'portfolio_beta': portfolio_beta,
-            'expected_portfolio_impact_pct': expected_impact
-        }

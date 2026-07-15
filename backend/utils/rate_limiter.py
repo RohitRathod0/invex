@@ -87,8 +87,5 @@ class TokenBucketQueue:
 # concurrent users; Gemini is far more generous than Groq at these levels.
 analysis_limiter = TokenBucketQueue(tpm_limit=10_000, rpm_limit=60)
 
-# News / screener / chat agents: Groq llama-3.1-8b-instant = 6k TPM / 30 RPM
-news_limiter = TokenBucketQueue(tpm_limit=5_500, rpm_limit=25)
-
 # Screener agent (llama-3.1-8b-instant on Groq, small calls)
 screener_limiter = TokenBucketQueue(tpm_limit=5_500, rpm_limit=25)

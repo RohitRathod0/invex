@@ -51,7 +51,7 @@ export default function ScreenerPage() {
         params.append('refresh', 'true');
       }
 
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/market/screener?${params.toString()}`);
+      const response = await fetch(`/api/v1/market/screener?${params.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch screener data');
       }
@@ -89,7 +89,7 @@ export default function ScreenerPage() {
 
   const fetchAiInsights = async (symbols: string[]) => {
       try {
-          const res = await fetch(`http://127.0.0.1:8000/api/v1/market/screener/ai-insights`, {
+          const res = await fetch(`/api/v1/market/screener/ai-insights`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ symbols })
@@ -108,7 +108,7 @@ export default function ScreenerPage() {
     setIsAiLoading(true);
     setAiMessage("");
     try {
-        const res = await fetch(`http://127.0.0.1:8000/api/v1/market/screener/ai-assistant`, {
+        const res = await fetch(`/api/v1/market/screener/ai-assistant`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: searchQuery })

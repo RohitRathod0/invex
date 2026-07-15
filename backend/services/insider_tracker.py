@@ -1,5 +1,4 @@
-import pandas as pd
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
 import random
 import logging
@@ -109,7 +108,7 @@ class InsiderTradingDetector:
 
         results = []
         for trade in buy_trades:
-            trade_price = trade["price"]
+            trade["price"]
             # Simulate future returns with drift + noise
             seed = hash(trade["id"]) % 10000
             rng = random.Random(seed)

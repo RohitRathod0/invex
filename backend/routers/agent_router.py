@@ -89,7 +89,6 @@ async def stream_crew_agent(request: Request, body: RunAgentRequest):
       {type: "error",           message: "..."}
     """
     import sys
-    import os
     from pathlib import Path
 
     # Ensure crew_core is on path (same as crew_service.py)
@@ -99,7 +98,6 @@ async def stream_crew_agent(request: Request, body: RunAgentRequest):
         sys.path.append(str(CREW_CORE_DIR / "src"))
 
     # Build crew inputs (same logic as crew_service)
-    from services.crew_service import run_crew_agent as _rca
     from datetime import datetime
 
     inputs = body.inputs or {}

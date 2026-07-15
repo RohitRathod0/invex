@@ -3,8 +3,6 @@ from typing import Type
 from pydantic import BaseModel, Field
 import yfinance as yf
 import requests
-import os
-from datetime import datetime, timedelta
 
 # Stock Market Tools
 class StockPriceInput(BaseModel):

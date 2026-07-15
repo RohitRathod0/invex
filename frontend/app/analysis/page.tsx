@@ -137,10 +137,10 @@ export default function AnalysisPage() {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 900_000); // 15 min max
 
-            // Bypass Next.js API rewrite to prevent stream buffering in development
-            const backendUrl = process.env.NODE_ENV === 'development' 
-                ? 'http://127.0.0.1:8000/api/v1/agents/run/stream'
-                : '/api/v1/agents/run/stream';
+            // Bypass Next.js API rewrite to prevent SSE stream buffering.
+            // In production, set NEXT_PUBLIC_API_URL=https://your-backend-host
+            const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000';
+            const backendUrl = `${API_BASE}/api/v1/agents/run/stream`;
 
             const rr = await fetch(backendUrl, {
                 method: 'POST',

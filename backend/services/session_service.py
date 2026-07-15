@@ -6,7 +6,6 @@ This replaces the old DynamoDB-based implementation.
 """
 
 import uuid
-import json
 from datetime import datetime, timezone
 from typing import Optional
 from models.mongo import get_mongo_db

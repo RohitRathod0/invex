@@ -3,7 +3,6 @@ from typing import Type
 from pydantic import BaseModel, Field
 import yfinance as yf
 import time
-from datetime import datetime
 
 class StockPriceInput(BaseModel):
     """Input schema for StockPriceTool"""
@@ -161,7 +160,7 @@ class TopStocksTool(BaseTool):
                 # Rate limiting to avoid API throttling
                 time.sleep(0.15)
                 
-            except Exception as e:
+            except Exception:
                 # Skip stocks with data issues
                 continue
         

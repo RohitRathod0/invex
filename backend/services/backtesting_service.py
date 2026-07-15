@@ -1,7 +1,5 @@
 import pandas as pd
-import numpy as np
 from backtesting import Backtest, Strategy
-from datetime import date
 from typing import Dict, Any
 
 class AIRecommendationStrategy(Strategy):

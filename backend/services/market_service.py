@@ -35,7 +35,6 @@ async def get_indices() -> List[Dict[str, Any]]:
     """Fetch live index prices directly via yfinance (fast_info path, no aggregator)."""
     import asyncio
     import yfinance as yf
-    import time
 
     results = []
 

@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +101,3 @@ def get_user_context(user_id: str) -> str:
 
     return compressed
 
-
-def invalidate_user_context(user_id: str) -> None:
-    """Remove cached context (call after onboarding retake or profile update)."""
-    _compressed_cache.pop(user_id, None)
-    logger.debug(f"[ContextCompressor] Cache invalidated for user {user_id}")
-
-
-def context_cache_stats() -> dict:
-    """Debug helper — how many compressed profiles are cached."""
-    return {"cached_profiles": len(_compressed_cache)}

@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any
-import math
 
 class TaxOptimizer:
     # India tax rates (FY 2024-25)

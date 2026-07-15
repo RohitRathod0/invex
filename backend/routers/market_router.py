@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from services.market_service import get_indices, get_stock_price, get_stock_history
@@ -163,17 +162,7 @@ async def get_sector_rotation(request: Request):
     
     return results
 
-@router.get("/insider-trades/{symbol}")
-@limiter.limit("10/minute")
-async def get_insider_trades(request: Request, symbol: str, days_back: int = 90):
-    """
-    Fetch and analyze insider trading patterns for a given symbol.
-    Rate limited: 10/minute.
-    """
-    from services.insider_tracker import InsiderTradingDetector
-    detector = InsiderTradingDetector()
-    results = await detector.fetch_insider_trades(symbol, days_back)
-    return results
+
 
 @router.get("/sentiment/{symbol}")
 @limiter.limit("10/minute")
@@ -187,11 +176,9 @@ async def get_social_sentiment(request: Request, symbol: str):
     results = await analyzer.analyze_stock_sentiment(symbol)
     return results
 
-from typing import Optional
 
 @router.get("/screener")
 async def get_screener(request: Request):
-    print("----- ENTERED GET_SCREENER ROUTE -----")
     try:
         from services.screener_service import screener_service
         force_refresh = str(request.query_params.get("refresh", "")).lower() == "true"
@@ -218,7 +205,7 @@ async def get_screener(request: Request):
 
 
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List
 
 class AIInsightsRequest(BaseModel):
     symbols: List[str]

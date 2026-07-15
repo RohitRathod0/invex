@@ -3,7 +3,6 @@ import logging
 from typing import Dict, Any, TypedDict, Literal
 from datetime import datetime
 
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph, START, END
 
@@ -66,7 +65,6 @@ async def generation_node(state: EngineState) -> Dict[str, Any]:
     # Mistral is now PRIMARY for all analysis — stable paid quota.
     # Gemini kept as fallback in case Mistral hits limits.
     from langchain_mistralai import ChatMistralAI
-    from langchain_google_genai import ChatGoogleGenerativeAI
     import os
     _primary_llm = ChatMistralAI(
         model="mistral-large-latest",

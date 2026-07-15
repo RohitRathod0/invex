@@ -209,7 +209,7 @@ async def interview_turn(body: InterviewTurnRequest):
     Frontend sends user_text + state, receives {reply, state, is_complete, profile}.
     Used by VoiceInterview with browser SpeechRecognition / SpeechSynthesis.
     """
-    from services.orchestrator import run_orchestrator, build_profile_from_state
+    from services.orchestrator import run_orchestrator
     try:
         reply, new_state, is_complete, profile = await run_orchestrator(
             body.user_text, body.state, extract_profile=True
@@ -220,7 +220,7 @@ async def interview_turn(body: InterviewTurnRequest):
             "is_complete": is_complete,
             "profile":     profile,     # non-null only when is_complete=True
         }
-    except Exception as exc:
+    except Exception:
         logger.exception("Interview turn failed")
         return {"reply": "I'm having trouble right now. Could you try again?", "state": body.state, "is_complete": False, "profile": None}
 

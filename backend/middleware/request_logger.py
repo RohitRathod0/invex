@@ -4,7 +4,6 @@ Logs: timestamp, method, path, status code, client IP, response time.
 """
 import time
 import logging
-import json
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response

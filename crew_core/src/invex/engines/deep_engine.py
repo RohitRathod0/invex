@@ -3,7 +3,7 @@ import time
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Optional
 
 import invex.crew as crew_module
 from invex.crew import Invex, CrewLLM

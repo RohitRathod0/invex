@@ -11,7 +11,6 @@ No external API key needed — uses yfinance + Google News RSS.
 
 import os
 import sys
-import json
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -31,7 +30,6 @@ if _crew_src not in sys.path:
 
 from crewai import Agent, Crew, Process, Task, LLM
 from crewai.tools import BaseTool
-from pydantic import Field
 import yfinance as yf
 import feedparser
 

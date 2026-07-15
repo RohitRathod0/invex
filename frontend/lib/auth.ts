@@ -45,9 +45,7 @@ export function getUserName(): string {
     return getUserProfile()?.name ?? '';
 }
 
-export function getUserEmail(): string {
-    return getUserProfile()?.email ?? '';
-}
+
 
 export function getUserId(): string {
     return getUserProfile()?.user_id ?? '';
@@ -80,33 +78,4 @@ export async function logout(): Promise<void> {
     window.location.href = '/login';
 }
 
-// ── Legacy shim (keeps old callers working) ───────────────────────────────────
-/** @deprecated Use setUserProfile() instead */
-export function setToken(_token: string, _userId: string, name?: string, email?: string) {
-    // No-op for token — it's in an HttpOnly cookie now.
-    // Store whatever name/email we have for the profile cache.
-    if (name || email) {
-        const existing = getUserProfile();
-        setUserProfile({
-            user_id:    existing?.user_id    ?? _userId,
-            name:       name                 ?? existing?.name    ?? '',
-            email:      email                ?? existing?.email   ?? '',
-            status:     existing?.status     ?? 'ACTIVE',
-            created_at: existing?.created_at ?? new Date().toISOString(),
-            last_login: existing?.last_login ?? null,
-        });
-    }
-}
 
-/** @deprecated Use getUserProfile() instead */
-export function getStoredUser() {
-    const p = getUserProfile();
-    if (!p) return null;
-    return { sub: p.user_id, name: p.name, email: p.email };
-}
-
-/** @deprecated JWT is now HttpOnly — always returns null */
-export function getToken(): string | null { return null; }
-
-/** @deprecated Use logout() instead */
-export function clearAuth() { clearUserProfile(); }

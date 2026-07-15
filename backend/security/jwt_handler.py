@@ -5,7 +5,6 @@ Creates and validates JWTs for session-based auth.
 Payload: { sub: user_id, session_id, email, name, exp }
 """
 
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 

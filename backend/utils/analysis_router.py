@@ -22,7 +22,6 @@ Usage:
 
 from __future__ import annotations
 
-import re
 
 # ---------------------------------------------------------------------------
 # Keyword groups (lowercase) — ordered by specificity to avoid false matches
@@ -101,21 +100,3 @@ def route_analysis_request(
 
     return "general_agent"
 
-
-def get_estimated_tokens(user_input: str, agent_key: str) -> int:
-    """
-    Heuristic token budget estimate for the rate limiter.
-    Returns a conservative estimate so the limiter stays safe.
-    """
-    _budgets = {
-        "onboarding_agent": 300,
-        "portfolio_agent":  700,
-        "screener_agent":   400,
-        "projection_agent": 500,
-        "news_agent":       600,
-        "general_agent":    400,
-    }
-    base = _budgets.get(agent_key, 500)
-    # Add ~4 tokens per word in the user input
-    input_est = max(50, len(user_input.split()) * 4)
-    return base + input_est

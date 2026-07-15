@@ -11,6 +11,10 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# Ensure outputs/ directory exists at startup (no error if report hasn't been generated yet)
+REPORTS_DIR = Path(__file__).resolve().parent.parent / "outputs"
+REPORTS_DIR.mkdir(exist_ok=True)
+
 # In-memory document registry (MVP - no DB needed)
 documents: dict = {}
 
@@ -18,10 +22,6 @@ documents: dict = {}
 @router.post("/upload")
 async def upload_document(file: UploadFile = File(...)):
     """Upload a document to the knowledge base."""
-    allowed_types = {
-        "application/pdf", "text/plain", "text/markdown",
-        "application/octet-stream"  # some browsers send this for .md
-    }
     allowed_extensions = {".pdf", ".txt", ".md"}
 
     suffix = Path(file.filename).suffix.lower()
@@ -75,14 +75,12 @@ async def delete_document(doc_id: str):
 @router.get("/report/download")
 async def download_report():
     """Download the latest generated investment report."""
-    # Look for report in backend/outputs/ (where crew writes it)
-    reports_dir = Path(__file__).resolve().parent.parent / "outputs"
-    report_path = reports_dir / "invex_report.md"
+    report_path = REPORTS_DIR / "invex_report.md"
 
     if not report_path.exists():
         raise HTTPException(
             status_code=404,
-            detail="No report available yet. Run an analysis first."
+            detail="No report available yet. Run an analysis first to generate one."
         )
 
     return FileResponse(

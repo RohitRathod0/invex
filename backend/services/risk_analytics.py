@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from scipy import stats
 from typing import List, Dict, Any
 
 class RiskAnalytics:
@@ -63,20 +62,6 @@ class RiskAnalytics:
             'max_drawdown': float(np.max(drawdowns)) * 100,  # Ensure percentage
             'max_drawdown_duration': int(RiskAnalytics._drawdown_duration(drawdowns))
         }
-    
-    @staticmethod
-    def beta_vs_nifty(stock_returns: np.ndarray, nifty_returns: np.ndarray) -> float:
-        """Stock sensitivity to market movements. Assumes both are same shape."""
-        if len(stock_returns) < 2 or len(nifty_returns) < 2: return 1.0
-        # Align lengths in case of mismatch
-        min_len = min(len(stock_returns), len(nifty_returns))
-        stock = stock_returns[-min_len:]
-        nifty = nifty_returns[-min_len:]
-        
-        nifty_variance = np.var(nifty)
-        if nifty_variance == 0: return 1.0
-        covariance = np.cov(stock, nifty)[0, 1]
-        return float(covariance / nifty_variance)
     
     @staticmethod
     def _calc_diversification(corr_matrix: pd.DataFrame) -> float:
