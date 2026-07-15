@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import os
 from typing import Any, Optional
 
 logger = logging.getLogger("invex.cache")
@@ -41,8 +42,8 @@ class CacheManager:
     Fallback: In-process memory cache (single-worker only, still beats no-cache).
     """
 
-    def __init__(self, redis_url: str = "redis://localhost:6379/0"):
-        self.redis_url = redis_url
+    def __init__(self, redis_url: Optional[str] = None):
+        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         self._redis = None
         self._redis_available: Optional[bool] = None  # None = untested
 
@@ -71,11 +72,18 @@ class CacheManager:
             try:
                 val = await client.get(key)
                 if val:
+                    logger.debug(f"[Cache Hit - Redis] {key}")
                     return json.loads(val)
             except Exception as e:
                 logger.debug(f"Redis get error for {key}: {e}")
         # Fallback to memory
-        return _memory_cache.get(key)
+        mem_val = _memory_cache.get(key)
+        if mem_val is not None:
+            logger.debug(f"[Cache Hit - Memory] {key}")
+            return mem_val
+            
+        logger.debug(f"[Cache Miss] {key}")
+        return None
 
     async def set(self, key: str, value: Any, expire_seconds: int = 300) -> bool:
         client = await self._get_client()

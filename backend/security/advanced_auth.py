@@ -10,8 +10,7 @@ import hashlib
 import hmac
 import json
 import time
-import random
-import string
+
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
@@ -231,88 +230,3 @@ class SecurityAuditLog:
         ]
 
 
-# ══════════════════════════════════════════════════════
-# 5. Two-Factor Authentication (OTP via Redis/in-memory)
-# ══════════════════════════════════════════════════════
-
-# In-memory OTP store as fallback when Redis is unavailable
-_otp_store: Dict[str, Dict[str, Any]] = {}
-
-
-class TwoFactorAuth:
-    """
-    Generates and validates time-limited OTPs for high-value trade confirmation.
-    Uses Redis when available, with a graceful in-memory fallback.
-    """
-
-    OTP_TTL_SECONDS = 300  # 5 minutes
-
-    @staticmethod
-    def _generate_otp(length: int = 6) -> str:
-        return "".join(random.choices(string.digits, k=length))
-
-    @staticmethod
-    async def require_for_trade(
-        user_id: str, trade_details: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Check if trade requires 2FA confirmation.
-        Returns {'requires_2fa': True} for trades ≥ ₹1 Lakh.
-        """
-        trade_value = trade_details.get("quantity", 0) * trade_details.get("price", 0)
-
-        if trade_value < 100_000:
-            return {"requires_2fa": False}
-
-        otp = TwoFactorAuth._generate_otp()
-        expiry = time.time() + TwoFactorAuth.OTP_TTL_SECONDS
-
-        # Try Redis first; fall back to in-memory
-        try:
-            import redis.asyncio as aioredis
-            r = aioredis.from_url("redis://localhost:6379", decode_responses=True)
-            await r.setex(f"trade_otp:{user_id}", TwoFactorAuth.OTP_TTL_SECONDS, otp)
-            await r.aclose()
-        except Exception:
-            _otp_store[f"trade_otp:{user_id}"] = {"otp": otp, "expiry": expiry}
-
-        # In production: send OTP via SMS (Twilio) or email (SES)
-        print(f"[2FA] OTP for user {user_id}: {otp}  (trade value ₹{trade_value:,.0f})")
-
-        return {
-            "requires_2fa": True,
-            "otp_sent": True,
-            "trade_value": trade_value,
-            "message": "OTP sent to your registered phone/email. Valid for 5 minutes.",
-        }
-
-    @staticmethod
-    async def verify_otp(user_id: str, submitted_otp: str) -> bool:
-        """Verify OTP and invalidate it on success (single-use)."""
-        key = f"trade_otp:{user_id}"
-
-        # Try Redis
-        try:
-            import redis.asyncio as aioredis
-            r = aioredis.from_url("redis://localhost:6379", decode_responses=True)
-            stored = await r.get(key)
-            if stored and hmac.compare_digest(stored, submitted_otp):
-                await r.delete(key)
-                await r.aclose()
-                return True
-            await r.aclose()
-            return False
-        except Exception:
-            pass
-
-        # Fallback in-memory
-        entry = _otp_store.get(key)
-        if not entry:
-            return False
-        if time.time() > entry["expiry"]:
-            del _otp_store[key]
-            return False
-        if hmac.compare_digest(entry["otp"], submitted_otp):
-            del _otp_store[key]
-            return True
-        return False

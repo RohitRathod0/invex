@@ -31,7 +31,7 @@ import numpy as np
 from models.mongo import get_mongo_db
 from routers.auth_router import get_current_user
 from services.backtesting_service import run_backtest
-from security.advanced_auth import TwoFactorAuth
+
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -69,8 +69,6 @@ class HoldingCreate(BaseModel):
     quantity:      float = Field(..., gt=0)
     avg_buy_price: float = Field(..., gt=0)
     buy_date:      datetime
-    otp:           Optional[str] = None
-
 
 class HoldingUpdate(BaseModel):
     quantity:      Optional[float] = Field(None, gt=0)
@@ -203,17 +201,6 @@ async def add_holding(
     user_id = current_user["_id"]
     db      = get_mongo_db()
 
-    # Enforce 2FA for high-value trades
-    trade_value = holding.quantity * holding.avg_buy_price
-    if trade_value >= 100_000:
-        if not holding.otp:
-            res = await TwoFactorAuth.require_for_trade(user_id, {"quantity": holding.quantity, "price": holding.avg_buy_price})
-            if res.get("requires_2fa"):
-                raise HTTPException(status_code=403, detail={"error": "2FA Required", "details": res})
-        else:
-            is_valid = await TwoFactorAuth.verify_otp(user_id, holding.otp)
-            if not is_valid:
-                raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     doc = {
         "_id":           str(uuid.uuid4()),
