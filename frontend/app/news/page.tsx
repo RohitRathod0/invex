@@ -271,6 +271,7 @@ function PortfolioAgentPanel({ injectedContext, onContextConsumed }: {
 
             const res = await fetch(`/api/v1/portfolio/analyze-news`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: userText,

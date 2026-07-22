@@ -1,39 +1,65 @@
-import subprocess
-import time
-from fastapi.testclient import TestClient
-from main import app
+"""
+Quick diagnostic: test analyze-news and screener imports
+"""
+import asyncio
+import sys
+import os
+sys.path.insert(0, r"C:\Users\rohit\OneDrive\Desktop\invex\backend")
 
-def run(cmd): return subprocess.check_output(cmd, shell=True, text=True).strip()
+async def test_screener():
+    print("=== Testing Screener Service ===")
+    try:
+        from services.screener_service import ScreenerService
+        svc = ScreenerService()
+        print("[OK] ScreenerService instantiated")
+        # Only fetch one symbol to test
+        import yfinance as yf
+        t = yf.Ticker("RELIANCE.NS")
+        fi = t.fast_info
+        print(f"[OK] yfinance fast_info: last_price={getattr(fi, 'last_price', None)}")
+    except Exception as e:
+        print(f"[FAIL] Screener: {e}")
 
-run('docker exec invex-redis redis-cli FLUSHALL')
+async def test_portfolio_analyst():
+    print("\n=== Testing Portfolio Analyst Agent imports ===")
+    try:
+        from utils.resilient_llm import get_langchain_llm
+        llm = get_langchain_llm("analysis_group")
+        print(f"[OK] analysis_group LLM: {type(llm).__name__}")
+    except Exception as e:
+        print(f"[FAIL] LLM init: {e}")
 
-print('\\n--- Step 2 & 5: Check Initial Redis Keys ---')
-print('Keys before:', run('docker exec invex-redis redis-cli KEYS *'))
+    try:
+        from utils.context_compressor import get_user_context
+        ctx = get_user_context("nonexistent")
+        print(f"[OK] context_compressor: '{ctx}'")
+    except Exception as e:
+        print(f"[FAIL] context_compressor: {e}")
 
-with TestClient(app) as client:
-    print('\\n--- Triggering app (Cache Miss expected) ---')
-    start = time.time()
-    r = client.get('/api/v1/market/tickers')
-    print(f'First call took {time.time()-start:.4f}s. Status: {r.status_code}')
+    try:
+        from utils.rate_limiter import analysis_limiter
+        print(f"[OK] rate_limiter imported")
+    except Exception as e:
+        print(f"[FAIL] rate_limiter: {e}")
 
-    print('\\n--- Check Redis Keys and TTL ---')
-    keys = run('docker exec invex-redis redis-cli KEYS *')
-    print(f'Keys after:\\n{keys}')
-    if keys:
-        first_key = keys.split('\\n')[0].strip()
-        if first_key:
-            print(f'TTL for {first_key}:', run(f'docker exec invex-redis redis-cli TTL "{first_key}"'))
+    try:
+        from services.news_service import MarketNewsTool
+        tool = MarketNewsTool()
+        print(f"[OK] MarketNewsTool instantiated")
+    except Exception as e:
+        print(f"[FAIL] MarketNewsTool: {e}")
 
-    print('\\n--- Step 6: Trigger Same Request (Cache Hit expected) ---')
-    start = time.time()
-    r = client.get('/api/v1/market/tickers')
-    print(f'Second call took {time.time()-start:.4f}s. Status: {r.status_code}')
+    try:
+        from services.portfolio_analyst_agent import portfolio_analyst
+        print(f"[OK] portfolio_analyst singleton loaded")
+    except Exception as e:
+        import traceback
+        print(f"[FAIL] portfolio_analyst_agent: {e}")
+        traceback.print_exc()
 
-    print('\\n--- Step 7: Test Fallback (Stop Redis) ---')
-    run('docker stop invex-redis')
-    start = time.time()
-    r = client.get('/api/v1/market/tickers')
-    print(f'Fallback call took {time.time()-start:.4f}s. Status: {r.status_code}')
 
-print('\\n--- Bringing Redis back ---')
-run('docker start invex-redis')
+async def main():
+    await test_screener()
+    await test_portfolio_analyst()
+
+asyncio.run(main())

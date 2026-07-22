@@ -173,7 +173,7 @@ function WhatIfCard({ data }: { data: WhatIfData }) {
                     ].map(s => (
                         <div key={s.label}>
                             <p style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</p>
-                            <p style={{ fontSize: '20px', fontWeight: 800, color: s.val.startsWith('+') ? '#C8F135' : '#EF4444' }}>{s.val}</p>
+                            <p style={{ fontSize: '20px', fontWeight: 800, color: s.val.startsWith('-') ? '#EF4444' : '#C8F135' }}>{s.val}</p>
                         </div>
                     ))}
                     <div>

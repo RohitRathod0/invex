@@ -1,5 +1,15 @@
 import logging
+import warnings
 from typing import TypedDict, Dict, Any, List
+
+# Suppress LangGraph internal deprecation warning about JsonPlusSerializer allowed_objects
+# This is fired by StateGraph.compile() internals; no public API to pass the value directly.
+warnings.filterwarnings(
+    "ignore",
+    message=".*allowed_objects.*will change in a future version.*",
+    category=DeprecationWarning,
+)
+
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -28,7 +38,7 @@ class PortfolioAnalystState(TypedDict):
 class PortfolioAnalystAgent:
     def __init__(self):
         # ── Model group isolation ─────────────────────────────────────────
-        # analysis_group: Gemini 2.0 Flash (1M TPM free tier) → Mistral → Groq
+        # analysis_group: Mistral Large → Mistral Small → Groq
         # This keeps the /analysis page completely isolated from the Groq
         # quota used by market_news and screener agents.
         self.primary_llm = get_langchain_llm("analysis_group")
@@ -145,7 +155,7 @@ class PortfolioAnalystAgent:
         try:
             res = self.primary_llm.invoke(messages)
             analysis = res.content.strip()
-        except Exception as e:
+        except BaseException as e:
             logger.error(f"Error in analyze_impact: {str(e)}")
             analysis = f"Analysis generation failed due to API error: {str(e)}"
 
@@ -182,7 +192,7 @@ class PortfolioAnalystAgent:
             parsed = parser.parse(res.content.strip())
             is_comp = parsed.get("is_complete", False)
             feed = parsed.get("feedback", "")
-        except Exception as e:
+        except BaseException as e:
             logger.warning(f"Evaluation parse failed, falling back to complete. Error: {str(e)}")
             is_comp = True
             feed = ""
@@ -216,10 +226,16 @@ class PortfolioAnalystAgent:
             user_id:   Used to look up the compressed risk-profile context string.
                        If omitted, a generic fallback string is used.
         """
-        # ── Rate-limit gate (analysis_group / Gemini Flash) ───────────────
-        # Estimate: ~500 tokens for analysis + ~4 tokens/word of user query
+        # ── Rate-limit gate — 5s max wait, skip if limiter is congested ──────
         est_tokens = 500 + len(user_query.split()) * 4
-        await analysis_limiter.acquire(estimated_tokens=est_tokens)
+        try:
+            import asyncio as _asyncio
+            await _asyncio.wait_for(
+                analysis_limiter.acquire(estimated_tokens=est_tokens),
+                timeout=5.0,
+            )
+        except Exception:
+            logger.warning("[run_analyst] rate limiter timeout — proceeding anyway")
 
         # ── Compressed user context (replaces raw JSON blob) ─────────────
         user_ctx = get_user_context(user_id) if user_id else "No risk profile set."

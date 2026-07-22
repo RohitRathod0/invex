@@ -29,23 +29,24 @@ Context: {analysis_context}`,
 5. If news is very impactful, say "⚠️ HIGH IMPACT" at the start`,
 
     'what-if': `You are the Invex AI What-If Simulator. The user wants to run a historical or hypothetical investment scenario.
-You MUST respond with valid JSON in this exact format:
+
+You MUST call the get_historical_returns tool to get real data before answering.
+NEVER invent, estimate, or guess price data, CAGR, or returns — the tool result is
+the only source of truth. If the tool returns an error (e.g. bad symbol or no data
+for that range), tell the user honestly rather than making something up.
+
+Once you have the tool result, respond with valid JSON in this exact format,
+using ONLY the numbers returned by the tool:
 {
-  "explanation": "1-2 sentence plain English explanation of the outcome",
-  "pnl": "+₹12,400 (24.8% return)",
-  "cagr": "28.4% CAGR",
-  "vs_benchmark": "Nifty 50 gave 18% in same period — you beat the market",
-  "chartData": [{"date": "Jan 2026", "value": 100000}, {"date": "Feb 2026", "value": 108000}, ...],
+  "explanation": "1-2 sentence plain English explanation of the outcome, using the tool's actual numbers",
+  "pnl": "+₹<current_value - invested_amount> (<absolute_return_pct>% return)",
+  "cagr": "<cagr_pct>% CAGR",
+  "vs_benchmark": "call get_historical_returns again for the relevant benchmark (nifty/sensex) over the same dates, then compare honestly",
+  "chartData": <the chart_data array returned by the tool, verbatim>,
   "suggestions": ["What if you added ₹5K every month (SIP)?", "Compare with Gold ETF instead"],
   "verdict": "GOOD_DECISION" | "BAD_DECISION" | "NEUTRAL"
 }
-IMPORTANT RULES FOR chartData:
-- {date_context}
-- Use the ACTUAL year the user mentions in their question. If they say "last 6 months" or "this year", use the real current date above.
-- If the scenario is about a recent/current event, use dates from the current year.
-- If no specific time is mentioned, default to the most recent 12 months ending today.
-- chartData must have 12+ data points
-- Generate realistic Indian market data. Use ₹ for currency.`,
+{date_context}`,
 
     'calm-mode': `You are the Calm Mode guardian for Invex AI. The user is emotionally reacting to market news. Rules:
 1. ALWAYS start with empathy. Acknowledge their fear first. ("I understand — watching numbers fall is genuinely uncomfortable.")
@@ -101,6 +102,9 @@ export async function POST(req: NextRequest) {
     try {
         const { message, mode = 'default', context = {}, memoryContext = '', userRiskProfile = '' } = await req.json();
 
+        // Forward the auth cookie so the backend can authenticate the user
+        const cookieHeader = req.headers.get('cookie') || '';
+
         // Auto-upgrade to calm mode if panic detected
         const effectiveMode = detectPanicTrigger(message) ? 'calm-mode' : mode;
 
@@ -130,7 +134,7 @@ export async function POST(req: NextRequest) {
         if (!sessionId) {
             const sessionRes = await fetch(`${backendUrl}/api/v1/chat/sessions`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Cookie': cookieHeader },
                 body: JSON.stringify({ user_name: context.userName || 'Invex User' }),
             });
             if (sessionRes.ok) {
@@ -142,7 +146,7 @@ export async function POST(req: NextRequest) {
         // ── Call the dedicated LangGraph ChatEngine (NOT agents/run / CrewAI) ──
         const chatRes = await fetch(`${backendUrl}/api/v1/chat/message`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Cookie': cookieHeader },
             body: JSON.stringify({
                 message: fullPrompt,             // used by AI engine only
                 original_message: message,       // clean user text → stored in MongoDB

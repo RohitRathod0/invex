@@ -36,8 +36,6 @@ async def get_indices() -> List[Dict[str, Any]]:
     import asyncio
     import yfinance as yf
 
-    results = []
-
     def _fetch_one(name: str, symbol: str) -> Dict[str, Any]:
         try:
             ticker = yf.Ticker(symbol)
@@ -68,11 +66,13 @@ async def get_indices() -> List[Dict[str, Any]]:
         except Exception as e:
             return {"name": name, "symbol": symbol, "value": 0, "change_pct": 0.0, "up": True, "error": str(e)}
 
-    # Fetch all tickers concurrently in thread pool
-    loop = asyncio.get_event_loop()
+    # Use get_running_loop() — correct API inside an async function (get_event_loop() is deprecated in 3.10+)
+    loop = asyncio.get_running_loop()
     tasks = [loop.run_in_executor(None, _fetch_one, name, symbol) for name, symbol in INDICES.items()]
-    results = list(await asyncio.gather(*tasks))
-    return results
+    results = list(await asyncio.gather(*tasks, return_exceptions=True))
+    # Filter out any exception objects that slipped through
+    return [r for r in results if isinstance(r, dict)]
+
 
 
 

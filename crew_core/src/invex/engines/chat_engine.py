@@ -57,6 +57,7 @@ def get_india_cpi() -> str:
     """Fetches India's latest CPI inflation rate from World Bank data."""
     return IndiaCPITool()._run()
 
+from invex.tools.historical_returns import get_historical_returns
 
 # Single in-process memory store — persists across requests within the server lifetime
 _memory = MemorySaver()
@@ -70,6 +71,7 @@ AGENT_TOOLS = [
     get_top_cryptos,
     get_india_gdp,
     get_india_cpi,
+    get_historical_returns,
 ]
 
 

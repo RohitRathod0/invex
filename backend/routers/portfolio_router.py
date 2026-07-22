@@ -301,13 +301,16 @@ async def get_performance(
                 return None
             result = {}
             for date, row in hist.iterrows():
+                val = float(row["Close"])
+                if np.isnan(val):
+                    continue
                 date_str         = date.strftime("%Y-%m-%d")
-                result[date_str] = float(row["Close"]) * qty
+                result[date_str] = val * qty
             return result
         except Exception:
             return None
 
-    loop    = asyncio.get_event_loop()
+    loop    = asyncio.get_running_loop()
     tasks   = [loop.run_in_executor(None, fetch_history, h["symbol"], h["exchange"], h["quantity"]) for h in holdings]
     results = await asyncio.gather(*tasks)
 
@@ -526,35 +529,43 @@ async def analyze_portfolio_news(
     current_user: dict = Depends(get_current_user),
 ):
     """Invoke the LangGraph portfolio analyst to analyze market news against user's holdings."""
-    from services.portfolio_analyst_agent import portfolio_analyst
     import traceback
-
-    user_id  = current_user["_id"]
-    db       = get_mongo_db()
-    cursor   = db["holdings"].find({"user_id": user_id})
-    holdings = await cursor.to_list(length=500)
-
-    if not holdings:
-        portfolio_context = "User has no active holdings. Provide general market insight."
-    else:
-        portfolio_context = "\n".join(
-            f"- {h['quantity']} shares of {h['symbol']} at {h['avg_buy_price']} (Exchange: {h['exchange']})"
-            for h in holdings
-        )
-
     try:
+        from services.portfolio_analyst_agent import portfolio_analyst
+
+        user_id = current_user["_id"]
+        logger.info(f"[analyze-news] user={user_id} query={str(payload.query)[:60]}")
+
+        # Fetch holdings
+        db      = get_mongo_db()
+        cursor  = db["holdings"].find({"user_id": user_id})
+        holdings = await cursor.to_list(length=500)
+        logger.info(f"[analyze-news] holdings fetched: {len(holdings)}")
+
+        if not holdings:
+            portfolio_context = "User has no active holdings. Provide general market insight."
+        else:
+            portfolio_context = "\n".join(
+                f"- {h['quantity']} shares of {h['symbol']} at {h['avg_buy_price']} (Exchange: {h['exchange']})"
+                for h in holdings
+            )
+
+        logger.info("[analyze-news] calling run_analyst …")
         result = await portfolio_analyst.run_analyst(
             user_query=payload.query,
             portfolio_context=portfolio_context,
             chat_history=payload.chat_history,
             news_data=payload.news_context,
             user_id=user_id,
+            max_attempts=1,          # single-pass: keeps total time < 45s
         )
+        logger.info("[analyze-news] run_analyst complete")
         return result
-    except Exception as e:
-        logger.error(f"Portfolio analyst failed: {traceback.format_exc()}")
+
+    except BaseException as e:
+        logger.error(f"[analyze-news] FAILED:\n{traceback.format_exc()}")
         return {
-            "analysis":   f"The portfolio analyst encountered an error. Please try again.\n\nDetails: {str(e)}",
+            "analysis":    f"The portfolio analyst encountered an error. Please try again.\n\nDetails: {str(e)}",
             "is_complete": False,
             "attempts":    0,
         }

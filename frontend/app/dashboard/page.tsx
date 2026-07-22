@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { ArrowUpRight, ArrowDownRight, MessageSquare, Activity, FileText, TrendingUp, RefreshCw, CheckCircle, AlertCircle, MinusCircle, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, MessageSquare, Activity, FileText, TrendingUp, RefreshCw, CheckCircle, AlertCircle, MinusCircle, ArrowRight, Plus } from 'lucide-react';
 import { OnboardingBanner } from '@/components/ui/OnboardingBanner';
 import { RiskProfileCard } from '@/components/dashboard/RiskProfileCard';
 import { getFirstName, isAuthenticated } from '@/lib/auth';
@@ -71,17 +71,23 @@ export default function DashboardPage() {
             // Fetch Documents
             const rDocs = await fetch('/api/v1/documents/');
             const dDocs = rDocs.ok ? await rDocs.json() : { total: 0 };
+            // Fetch Agent Runs
+            const rRuns = await fetch('/api/v1/agents/runs');
+            let totalRuns = 0;
+            let recentAnalyses = [];
+            if (rRuns.ok) {
+                const dRuns = await rRuns.json();
+                totalRuns = dRuns.total || 0;
+                recentAnalyses = dRuns.runs || [];
+            }
 
-            // We default agent runs to 0 until an endpoint specifically tracks agent executions.
             setStats({
                 sessions: dSessions.total || 0,
-                agentRuns: 0,
+                agentRuns: totalRuns,
                 documents: dDocs.total || 0,
             });
 
-            // If there's an endpoint for analyses, fetch it here
-            // Currently assuming it starts empty dynamically as requested
-            setAnalyses([]); 
+            setAnalyses(recentAnalyses);
         } catch (err) { 
             console.error(err);
         } finally { 
@@ -113,13 +119,13 @@ export default function DashboardPage() {
                         <span style={{ color: '#C8F135' }}>{userName}!</span>
                     </p>
                 </div>
-                <a href="/analysis" style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    background: '#C8F135', color: '#000', fontWeight: 700,
-                    borderRadius: '12px', padding: '10px 22px', textDecoration: 'none',
-                    fontSize: '14px', boxShadow: '0 0 24px rgba(200,241,53,0.3)'
+                <a href="/analysis?new=true" style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    background: '#C8F135', color: '#000', fontWeight: 600, fontSize: '13px',
+                    padding: '8px 16px', borderRadius: '8px', textDecoration: 'none',
+                    boxShadow: '0 4px 12px rgba(200, 241, 53, 0.2)'
                 }}>
-                    + New Analysis
+                    <Plus size={16} /> New Analysis
                 </a>
             </div>
 
@@ -192,7 +198,7 @@ export default function DashboardPage() {
                                 Get AI-powered analysis with real NSE data, geo-political signals and macroeconomic insights from 4 specialized agents.
                             </p>
                         </div>
-                        <a href="/analysis" style={{
+                        <a href="/analysis?new=true" style={{
                             display: 'inline-flex', alignItems: 'center', gap: '8px',
                             background: '#fff', color: '#2563EB', fontWeight: 700,
                             borderRadius: '999px', padding: '12px 24px', textDecoration: 'none',

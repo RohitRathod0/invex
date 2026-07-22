@@ -173,8 +173,14 @@ class MarketNewsTool(BaseTool):
         "(5) Crypto — Bitcoin, Ethereum, crypto regulation. "
         "Returns top 15 headlines scored by market-relevance, deduplicated."
     )
+    _cached_result: str = None
+    _last_fetched: datetime = None
 
     def _run(self) -> str:
+        if MarketNewsTool._cached_result and MarketNewsTool._last_fetched:
+            if (datetime.now() - MarketNewsTool._last_fetched).total_seconds() < 3600:
+                return MarketNewsTool._cached_result
+
         news_items: list[str] = []
 
         def _fetch_rss(feeds: list[tuple], max_per_source: int) -> list[str]:
@@ -247,7 +253,10 @@ class MarketNewsTool(BaseTool):
         scored.sort(key=lambda x: x[0], reverse=True)
         top_items = [itm for _, itm in scored[:15]]
 
-        return "\n".join(f"{i+1}. {item}" for i, item in enumerate(top_items))
+        result_str = "\n".join(f"{i+1}. {item}" for i, item in enumerate(top_items))
+        MarketNewsTool._cached_result = result_str
+        MarketNewsTool._last_fetched = datetime.now()
+        return result_str
 
 
 # ---------------------------------------------------------------------------
@@ -267,10 +276,10 @@ def run_news_analysis() -> dict:
     try:
         # news_group priority order: Groq fast → Gemini Flash → Mistral small
         NEWS_AGENT_MODELS = [
-            "groq/llama-3.1-8b-instant",       # 6,000 TPM — fast, 128k ctx, primary
+            "mistral/mistral-small-latest",     # 50,000 TPM — primary (per user request)
+            "groq/llama-3.1-8b-instant",       # 6,000 TPM — fast, 128k ctx
             "groq/gemma2-9b-it",               # 14,400 TPM — Groq alt if llama hits limit
             "gemini/gemini-2.0-flash",          # 1,000,000 TPM — Gemini fallback
-            "mistral/mistral-small-latest",     # 50,000 TPM — last resort
         ]
         result = None
         error_msg = ""

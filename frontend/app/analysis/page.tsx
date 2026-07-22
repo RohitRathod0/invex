@@ -95,6 +95,31 @@ export default function AnalysisPage() {
         })();
     }, []);
 
+    // ── Rehydrate latest analysis report on mount ────────────────────────────
+    useEffect(() => {
+        const checkLatestRun = async () => {
+            const searchParams = new URLSearchParams(window.location.search);
+            if (searchParams.get("new") === "true") {
+                // User explicitly requested a new analysis via Dashboard CTA
+                return;
+            }
+            try {
+                const res = await fetch('/api/v1/agents/runs-latest');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.has_run && data.payload) {
+                    const reportData = data.payload.result?.report;
+                    if (reportData) {
+                        setResult(typeof reportData === 'string' ? reportData : JSON.stringify(reportData));
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to rehydrate latest run", err);
+            }
+        };
+        checkLatestRun();
+    }, []);
+
     useEffect(() => { fetchTickers(); }, []);
     useEffect(() => { logsEnd.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
 

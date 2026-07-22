@@ -1,12 +1,15 @@
 import asyncio
 import json
 import logging
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from models.api_models import RunAgentRequest
 from services.crew_service import run_crew_agent
+from models.mongo import get_mongo_db
+from routers.auth_router import get_current_user
+import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agents", tags=["agents"])
@@ -204,6 +207,21 @@ async def stream_crew_agent(request: Request, body: RunAgentRequest):
                 break
             if event is None:
                 break
+            
+            # --- Save the final successful run to MongoDB ---
+            if event.get("type") == "final":
+                try:
+                    db = get_mongo_db()
+                    await db["agent_runs"].insert_one({
+                        "user_id": body.user_id,
+                        "session_id": body.session_id,
+                        "payload": event.get("payload"),
+                        "created_at": datetime.utcnow()
+                    })
+                    logger.info(f"[SSE] Saved agent run to MongoDB for user {body.user_id}")
+                except Exception as e:
+                    logger.error(f"[SSE] Failed to save agent run to Mongo: {e}")
+
             try:
                 yield f"data: {json.dumps(event)}\n\n"
             except Exception:
@@ -227,3 +245,64 @@ async def stream_crew_agent(request: Request, body: RunAgentRequest):
 @router.get("/runs/{run_id}")
 async def get_agent_run_by_id(run_id: str):
     return {"run_id": run_id, "status": "unknown", "result": None}
+
+
+@router.get("/runs")
+async def get_recent_runs(user: dict = Depends(get_current_user)):
+    """Returns the most recent 10 analyses for the dashboard."""
+    db = get_mongo_db()
+    cursor = db["agent_runs"].find({"user_id": user["_id"]}).sort("created_at", -1).limit(10)
+    runs = await cursor.to_list(length=10)
+    
+    total = await db["agent_runs"].count_documents({"user_id": user["_id"]})
+    
+    # Format for the dashboard
+    formatted_runs = []
+    for r in runs:
+        payload = r.get("payload", {})
+        sd = payload.get("result", {}).get("structured_data", {}) or {}
+        
+        # Map overall portfolio summary to table format
+        asset = sd.get("portfolio_strategy", "Investment Analysis")
+        score = sd.get("overall_score", "N/A")
+        risk = sd.get("risk_assessment", {}).get("level", "Medium")
+        rec = sd.get("actionable_recommendation", "HOLD").upper()
+        
+        # Ensure standard values
+        if "BUY" in rec: rec = "BUY"
+        elif "SELL" in rec: rec = "SELL"
+        else: rec = "HOLD"
+        
+        if "LOW" in str(risk).upper(): risk = "Low"
+        elif "HIGH" in str(risk).upper() or "AGGRESSIVE" in str(risk).upper(): risk = "High"
+        else: risk = "Medium"
+        
+        formatted_runs.append({
+            "id": str(r["_id"]),
+            "asset": str(asset)[:30],  # Truncate long strategy names
+            "score": score,
+            "risk": risk,
+            "rec": rec,
+            "date": r.get("created_at").strftime("%Y-%m-%d") if r.get("created_at") else "Unknown"
+        })
+        
+    return {"total": total, "runs": formatted_runs}
+
+
+@router.get("/runs-latest")
+async def get_latest_run(user: dict = Depends(get_current_user)):
+    """Returns the full payload of the most recent analysis to rehydrate the analysis page."""
+    db = get_mongo_db()
+    latest = await db["agent_runs"].find_one(
+        {"user_id": user["_id"]},
+        sort=[("created_at", -1)]
+    )
+    
+    if not latest:
+        return {"has_run": False}
+        
+    return {
+        "has_run": True,
+        "created_at": latest.get("created_at").isoformat() if latest.get("created_at") else None,
+        "payload": latest.get("payload")
+    }

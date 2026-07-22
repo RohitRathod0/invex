@@ -1,7 +1,16 @@
 import json
+import warnings
 from typing import List, TypedDict
 from groq import AsyncGroq
 from langchain_core.messages import HumanMessage, SystemMessage
+
+# Suppress LangGraph internal deprecation warning about JsonPlusSerializer allowed_objects
+warnings.filterwarnings(
+    "ignore",
+    message=".*allowed_objects.*will change in a future version.*",
+    category=DeprecationWarning,
+)
+
 from langgraph.graph import StateGraph, END
 from config import get_settings
 from services.screener_service import screener_service

@@ -23,7 +23,7 @@ class ScreenerService:
             ("ASIANPAINT.NS", "Asian Paints", "Consumer", "Large"),
             ("MARUTI.NS", "Maruti Suzuki", "Automobiles", "Large"),
             ("SUNPHARMA.NS", "Sun Pharma", "Healthcare", "Large"),
-            ("TATMOTORS.NS", "Tata Motors", "Automobiles", "Large"),
+            ("TATAMOTORS.NS", "Tata Motors", "Automobiles", "Large"),
             ("BAJFINANCE.NS", "Bajaj Finance", "Financials", "Large"),
             ("TITAN.NS", "Titan Company", "Consumer", "Large"),
             ("WIPRO.NS", "Wipro", "Technology", "Large"),
@@ -240,15 +240,18 @@ class ScreenerService:
         if filters.get("above_dma_50"): filtered = [a for a in filtered if a["price"] > a["dma_50"]]
         if filters.get("above_dma_200"): filtered = [a for a in filtered if a["price"] > a["dma_200"]]
 
+        if not filtered:
+            return []
+
         # Sorting
         sort_by = filters.get("sort_by", "total_score")
         sort_desc = filters.get("sort_desc", True)
         
         # Default sort fallback to market cap if sort_by field missing
-        if filtered and sort_by not in filtered[0]:
+        if sort_by not in filtered[0]:
             sort_by = "market_cap"
             
-        filtered.sort(key=lambda x: x[sort_by], reverse=sort_desc)
+        filtered.sort(key=lambda x: x.get(sort_by, 0), reverse=sort_desc)
         return filtered
 
 screener_service = ScreenerService()

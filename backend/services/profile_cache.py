@@ -88,11 +88,15 @@ def get_cached_profile(user_id: str) -> Optional[dict]:
     """
     Retrieve user_context for user_id from cache.
     Returns None if not cached or expired.
+    Falls back to in-memory cache if Redis is unavailable.
     """
     r = _get_redis()
     if r:
-        raw = r.get(f"profile:{user_id}")
-        return json.loads(raw) if raw else None
+        try:
+            raw = r.get(f"profile:{user_id}")
+            return json.loads(raw) if raw else None
+        except Exception as exc:
+            logger.warning(f"Redis GET failed ({exc}) — falling back to in-memory cache")
     return _mem_cache.get(user_id)
 
 
@@ -100,33 +104,46 @@ def set_cached_profile(user_id: str, profile: dict) -> None:
     """
     Store user_context for user_id in cache.
     Also stamps 'cached_at' so callers can see cache freshness.
+    Falls back to in-memory cache if Redis is unavailable.
     """
     profile["cached_at"] = datetime.utcnow().isoformat()
     r = _get_redis()
     if r:
-        r.setex(f"profile:{user_id}", CACHE_TTL_S, json.dumps(profile))
-    else:
-        _mem_cache.set(user_id, profile)
-    logger.debug(f"Profile cached for user {user_id}")
+        try:
+            r.setex(f"profile:{user_id}", CACHE_TTL_S, json.dumps(profile))
+            logger.debug(f"Profile cached for user {user_id} (redis)")
+            return
+        except Exception as exc:
+            logger.warning(f"Redis SETEX failed ({exc}) — falling back to in-memory cache")
+    _mem_cache.set(user_id, profile)
+    logger.debug(f"Profile cached for user {user_id} (memory)")
 
 
 def invalidate_profile(user_id: str) -> None:
     """
     Remove user_id from cache (e.g. after a retake completes).
     The next read will load fresh from PostgreSQL.
+    Falls back to in-memory cache if Redis is unavailable.
     """
     r = _get_redis()
     if r:
-        r.delete(f"profile:{user_id}")
-    else:
-        _mem_cache.delete(user_id)
-    logger.debug(f"Profile cache invalidated for user {user_id}")
+        try:
+            r.delete(f"profile:{user_id}")
+            logger.debug(f"Profile cache invalidated for user {user_id} (redis)")
+            return
+        except Exception as exc:
+            logger.warning(f"Redis DELETE failed ({exc}) — falling back to in-memory cache")
+    _mem_cache.delete(user_id)
+    logger.debug(f"Profile cache invalidated for user {user_id} (memory)")
 
 
 def cache_stats() -> dict:
     """Debug endpoint data — how many profiles are currently cached."""
     r = _get_redis()
     if r:
-        keys = r.keys("profile:*")
-        return {"backend": "redis", "cached_profiles": len(keys)}
+        try:
+            keys = r.keys("profile:*")
+            return {"backend": "redis", "cached_profiles": len(keys)}
+        except Exception as exc:
+            logger.warning(f"Redis KEYS failed ({exc}) — reporting memory stats")
     return {"backend": "memory", "cached_profiles": len(_mem_cache)}
